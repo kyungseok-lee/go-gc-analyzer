@@ -28,8 +28,7 @@ func TestIntegration_FullAnalysisFlow(t *testing.T) {
 	}
 
 	// Analyze the collected metrics
-	gcAnalyzer := gcanalyzer.NewAnalyzer(metrics)
-	analysis, err := gcAnalyzer.Analyze()
+	analysis, err := gcanalyzer.Analyze(metrics)
 	if err != nil {
 		t.Fatalf("Failed to analyze metrics: %v", err)
 	}
@@ -47,12 +46,9 @@ func TestIntegration_FullAnalysisFlow(t *testing.T) {
 		t.Error("Average heap size should not be zero")
 	}
 
-	// Generate reports
-	reporter := gcanalyzer.NewReporter(analysis, metrics, nil)
-
-	// Test text report generation
+		// Test text report generation
 	var textReport strings.Builder
-	err = reporter.GenerateTextReport(&textReport)
+	err = gcanalyzer.GenerateTextReport(analysis, metrics, nil, &textReport)
 	if err != nil {
 		t.Errorf("Failed to generate text report: %v", err)
 	}
@@ -68,7 +64,7 @@ func TestIntegration_FullAnalysisFlow(t *testing.T) {
 
 	// Test JSON report generation
 	var jsonReport strings.Builder
-	err = reporter.GenerateJSONReport(&jsonReport, true)
+	err = gcanalyzer.GenerateJSONReport(analysis, metrics, nil, &jsonReport, true)
 	if err != nil {
 		t.Errorf("Failed to generate JSON report: %v", err)
 	}
@@ -78,20 +74,20 @@ func TestIntegration_FullAnalysisFlow(t *testing.T) {
 		t.Error("JSON report should contain analysis data")
 	}
 
-	// Test summary report
+		// Test summary report
 	var summaryReport strings.Builder
-	err = reporter.GenerateSummaryReport(&summaryReport)
+	err = gcanalyzer.GenerateSummaryReport(analysis, &summaryReport)
 	if err != nil {
 		t.Errorf("Failed to generate summary report: %v", err)
 	}
-
+	
 	summaryContent := summaryReport.String()
 	if !strings.Contains(summaryContent, "GC Summary Report") {
 		t.Error("Summary report should contain title")
 	}
-
+	
 	// Test health check
-	healthCheck := reporter.GenerateHealthCheck()
+	healthCheck := gcanalyzer.GenerateHealthCheck(analysis)
 	if healthCheck == nil {
 		t.Error("Health check should not be nil")
 	}
@@ -110,26 +106,26 @@ func TestIntegration_CollectorWithAnalysis(t *testing.T) {
 	var collectedMetrics []*gcanalyzer.GCMetrics
 	var events []*gcanalyzer.GCEvent
 
-	config := &gcanalyzer.CollectorConfig{
+		config := &gcanalyzer.MonitorConfig{
 		Interval:   100 * time.Millisecond,
 		MaxSamples: 50,
-		OnMetricCollected: func(m *gcanalyzer.GCMetrics) {
+		OnMetric: func(m *gcanalyzer.GCMetrics) {
 			collectedMetrics = append(collectedMetrics, m)
 		},
 		OnGCEvent: func(e *gcanalyzer.GCEvent) {
 			events = append(events, e)
 		},
 	}
-
-	collector := gcanalyzer.NewCollector(config)
+	
+	monitor := gcanalyzer.NewMonitor(config)
 
 	// Start collection
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	err := collector.Start(ctx)
+	err := monitor.Start(ctx)
 	if err != nil {
-		t.Fatalf("Failed to start collector: %v", err)
+		t.Fatalf("Failed to start monitor: %v", err)
 	}
 
 	// Generate some GC activity
@@ -140,12 +136,12 @@ func TestIntegration_CollectorWithAnalysis(t *testing.T) {
 		}
 	}()
 
-	// Wait for collection period
+		// Wait for collection period
 	<-ctx.Done()
-	collector.Stop()
-
+	monitor.Stop()
+	
 	// Verify we collected metrics
-	finalMetrics := collector.GetMetrics()
+	finalMetrics := monitor.GetMetrics()
 	if len(finalMetrics) == 0 {
 		t.Error("Should have collected some metrics")
 	}
@@ -156,13 +152,12 @@ func TestIntegration_CollectorWithAnalysis(t *testing.T) {
 	}
 
 	// Analyze collected data
-	if len(finalMetrics) >= 2 {
-		gcAnalyzer := gcanalyzer.NewAnalyzerWithEvents(finalMetrics, collector.GetEvents())
-		analysis, err := gcAnalyzer.Analyze()
+		if len(finalMetrics) >= 2 {
+		analysis, err := gcanalyzer.AnalyzeWithEvents(finalMetrics, monitor.GetEvents())
 		if err != nil {
 			t.Errorf("Failed to analyze collected metrics: %v", err)
 		}
-
+		
 		if analysis.Period <= 0 {
 			t.Error("Analysis period should be positive")
 		}
@@ -197,10 +192,8 @@ func TestIntegration_MemoryTrendAnalysis(t *testing.T) {
 		t.Fatal("Need at least 2 metrics for trend analysis")
 	}
 
-	gcAnalyzer := gcanalyzer.NewAnalyzer(metrics)
-
-	// Test memory trend analysis
-	memoryTrend := gcAnalyzer.GetMemoryTrend()
+		// Test memory trend analysis
+	memoryTrend := gcanalyzer.GetMemoryTrend(metrics)
 	if len(memoryTrend) != len(metrics) {
 		t.Errorf("Memory trend should have same length as metrics, got %d vs %d",
 			len(memoryTrend), len(metrics))
@@ -246,9 +239,8 @@ func TestIntegration_PauseTimeDistribution(t *testing.T) {
 		t.Fatal("No metrics collected")
 	}
 
-	// Create analyzer and check pause time distribution
-	gcAnalyzer := gcanalyzer.NewAnalyzer(metrics)
-	distribution := gcAnalyzer.GetPauseTimeDistribution()
+	// Check pause time distribution (using empty events for this test)
+	distribution := gcanalyzer.GetPauseTimeDistribution([]*gcanalyzer.GCEvent{})
 
 	// Verify all expected buckets exist
 	expectedBuckets := []string{"0-1ms", "1-5ms", "5-10ms", "10-50ms", "50-100ms", "100ms+"}
@@ -278,14 +270,11 @@ func TestIntegration_ReporterFormats(t *testing.T) {
 		t.Fatal("Need at least 2 metrics for analysis")
 	}
 
-	// Analyze
-	gcAnalyzer := gcanalyzer.NewAnalyzer(metrics)
-	analysis, err := gcAnalyzer.Analyze()
+		// Analyze
+	analysis, err := gcanalyzer.Analyze(metrics)
 	if err != nil {
 		t.Fatalf("Failed to analyze: %v", err)
 	}
-
-	reporter := gcanalyzer.NewReporter(analysis, metrics, nil)
 
 	// Test all report formats
 	formats := []struct {
@@ -296,42 +285,28 @@ func TestIntegration_ReporterFormats(t *testing.T) {
 			"text",
 			func() error {
 				var buf strings.Builder
-				return reporter.GenerateTextReport(&buf)
+				return gcanalyzer.GenerateTextReport(analysis, metrics, nil, &buf)
 			},
 		},
 		{
 			"json",
 			func() error {
 				var buf strings.Builder
-				return reporter.GenerateJSONReport(&buf, false)
+				return gcanalyzer.GenerateJSONReport(analysis, metrics, nil, &buf, false)
 			},
 		},
 		{
 			"json-indented",
 			func() error {
 				var buf strings.Builder
-				return reporter.GenerateJSONReport(&buf, true)
-			},
-		},
-		{
-			"table",
-			func() error {
-				var buf strings.Builder
-				return reporter.GenerateTableReport(&buf)
+				return gcanalyzer.GenerateJSONReport(analysis, metrics, nil, &buf, true)
 			},
 		},
 		{
 			"summary",
 			func() error {
 				var buf strings.Builder
-				return reporter.GenerateSummaryReport(&buf)
-			},
-		},
-		{
-			"grafana",
-			func() error {
-				var buf strings.Builder
-				return reporter.GenerateGrafanaMetrics(&buf)
+				return gcanalyzer.GenerateSummaryReport(analysis, &buf)
 			},
 		},
 	}

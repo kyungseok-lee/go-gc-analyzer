@@ -8,14 +8,15 @@ A comprehensive Go library for analyzing and monitoring garbage collection (GC) 
 
 ## 🚀 Features
 
-- **Real-time GC Monitoring**: Continuous collection of GC metrics with configurable intervals
+- **Real-time GC Monitoring**: Continuous collection of GC metrics with configurable intervals and alerting
 - **Comprehensive Analysis**: Detailed analysis of GC frequency, pause times, memory usage, and allocation patterns
-- **Multiple Report Formats**: Generate reports in text, JSON, table, and Prometheus formats
-- **Health Monitoring**: Built-in health checks with configurable alert thresholds
-- **Memory Trend Analysis**: Track memory usage patterns over time
-- **Pause Time Distribution**: Analyze GC pause time distributions and percentiles
+- **Multiple Report Formats**: Generate reports in text, JSON, and summary formats
+- **Health Monitoring**: Built-in health checks with configurable alert thresholds and scoring
+- **Memory Trend Analysis**: Track memory usage patterns over time with detailed trend data
+- **Pause Time Distribution**: Analyze GC pause time distributions and percentiles from GC events
 - **Performance Recommendations**: Automated suggestions for GC performance optimization
-- **HTTP Endpoints**: Ready-to-use HTTP server for metrics exposition
+- **Simple API**: Clean and intuitive API with single import path (`pkg/gcanalyzer`)
+- **Modular Architecture**: Well-structured internal packages with clean separation of concerns
 - **Zero Dependencies**: Pure Go implementation with no external dependencies
 
 ## 📦 Installation
@@ -35,21 +36,21 @@ import (
     "context"
     "fmt"
     "time"
+    "os"
     
-    "github.com/kyungseok-lee/go-gc-analyzer/analyzer"
+    "github.com/kyungseok-lee/go-gc-analyzer/pkg/gcanalyzer"
 )
 
 func main() {
     // Collect GC metrics for 10 seconds
     ctx := context.Background()
-    metrics, err := analyzer.CollectForDuration(ctx, 10*time.Second, time.Second)
+    metrics, err := gcanalyzer.CollectForDuration(ctx, 10*time.Second, time.Second)
     if err != nil {
         panic(err)
     }
     
     // Analyze the collected metrics
-    gcAnalyzer := analyzer.NewAnalyzer(metrics)
-    analysis, err := gcAnalyzer.Analyze()
+    analysis, err := gcanalyzer.Analyze(metrics)
     if err != nil {
         panic(err)
     }
@@ -61,8 +62,7 @@ func main() {
     fmt.Printf("GC Overhead: %.2f%%\n", analysis.GCOverhead)
     
     // Generate a report
-    reporter := analyzer.NewReporter(analysis, metrics, nil)
-    reporter.GenerateSummaryReport(os.Stdout)
+    gcanalyzer.GenerateSummaryReport(analysis, os.Stdout)
 }
 ```
 
@@ -76,29 +76,29 @@ import (
     "log"
     "time"
     
-    "github.com/kyungseok-lee/go-gc-analyzer/analyzer"
+    "github.com/kyungseok-lee/go-gc-analyzer/pkg/gcanalyzer"
 )
 
 func main() {
-    config := &analyzer.CollectorConfig{
+    config := &gcanalyzer.MonitorConfig{
         Interval:   time.Second,
         MaxSamples: 300, // Keep 5 minutes of data
-        OnMetricCollected: func(m *analyzer.GCMetrics) {
+        OnMetric: func(m *gcanalyzer.GCMetrics) {
             if m.GCCPUFraction > 0.1 {
                 log.Printf("High GC CPU usage: %.2f%%", m.GCCPUFraction*100)
             }
         },
-        OnGCEvent: func(e *analyzer.GCEvent) {
+        OnGCEvent: func(e *gcanalyzer.GCEvent) {
             if e.Duration > 10*time.Millisecond {
                 log.Printf("Long GC pause: %v", e.Duration)
             }
         },
     }
     
-    collector := analyzer.NewCollector(config)
+    monitor := gcanalyzer.NewMonitor(config)
     
     ctx := context.Background()
-    err := collector.Start(ctx)
+    err := monitor.Start(ctx)
     if err != nil {
         panic(err)
     }
@@ -106,13 +106,12 @@ func main() {
     // Let it run for a while
     time.Sleep(1 * time.Minute)
     
-    collector.Stop()
+    monitor.Stop()
     
     // Analyze collected data
-    metrics := collector.GetMetrics()
+    metrics := monitor.GetMetrics()
     if len(metrics) >= 2 {
-        gcAnalyzer := analyzer.NewAnalyzer(metrics)
-        analysis, _ := gcAnalyzer.Analyze()
+        analysis, _ := gcanalyzer.Analyze(metrics)
         
         fmt.Printf("Analysis complete: %d recommendations\n", len(analysis.Recommendations))
         for _, rec := range analysis.Recommendations {
@@ -193,52 +192,50 @@ func CollectForDuration(ctx context.Context, duration, interval time.Duration) (
 #### Analysis Functions
 
 ```go
-// Create analyzer from metrics
-func NewAnalyzer(metrics []*GCMetrics) *Analyzer
+// Perform analysis on metrics
+func Analyze(metrics []*GCMetrics) (*GCAnalysis, error)
 
-// Perform analysis
-func (a *Analyzer) Analyze() (*GCAnalysis, error)
+// Perform analysis with both metrics and events
+func AnalyzeWithEvents(metrics []*GCMetrics, events []*GCEvent) (*GCAnalysis, error)
 
 // Get memory trend data
-func (a *Analyzer) GetMemoryTrend() []MemoryPoint
+func GetMemoryTrend(metrics []*GCMetrics) []MemoryPoint
 
 // Get pause time distribution
-func (a *Analyzer) GetPauseTimeDistribution() map[string]int
+func GetPauseTimeDistribution(events []*GCEvent) map[string]int
 ```
 
 #### Reporting Functions
 
 ```go
-// Create reporter
-func NewReporter(analysis *GCAnalysis, metrics []*GCMetrics, events []*GCEvent) *Reporter
-
 // Generate various report formats
-func (r *Reporter) GenerateTextReport(w io.Writer) error
-func (r *Reporter) GenerateJSONReport(w io.Writer, indent bool) error
-func (r *Reporter) GenerateTableReport(w io.Writer) error
-func (r *Reporter) GenerateSummaryReport(w io.Writer) error
-func (r *Reporter) GenerateGrafanaMetrics(w io.Writer) error
+func GenerateTextReport(analysis *GCAnalysis, metrics []*GCMetrics, events []*GCEvent, w io.Writer) error
+func GenerateJSONReport(analysis *GCAnalysis, metrics []*GCMetrics, events []*GCEvent, w io.Writer, indent bool) error
+func GenerateSummaryReport(analysis *GCAnalysis, w io.Writer) error
 
 // Generate health check
-func (r *Reporter) GenerateHealthCheck() *HealthCheckStatus
+func GenerateHealthCheck(analysis *GCAnalysis) *HealthCheckStatus
 ```
 
 ## 🔧 Configuration
 
-### Collector Configuration
+### Monitor Configuration
 
 ```go
-type CollectorConfig struct {
+type MonitorConfig struct {
     // Collection interval (default: 1 second)
     Interval time.Duration
     
     // Maximum samples to keep in memory (default: 1000)
     MaxSamples int
     
-    // Callback for each collected metric
-    OnMetricCollected func(*GCMetrics)
+    // Alert callback function
+    OnAlert func(*Alert)
     
-    // Callback for each GC event
+    // Metric collection callback
+    OnMetric func(*GCMetrics)
+    
+    // GC event callback
     OnGCEvent func(*GCEvent)
 }
 ```

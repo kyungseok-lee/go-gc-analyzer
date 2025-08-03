@@ -8,14 +8,15 @@ Go 애플리케이션의 가비지 컬렉션(GC) 성능을 분석하고 모니�
 
 ## 🚀 주요 기능
 
-- **실시간 GC 모니터링**: 설정 가능한 간격으로 GC 메트릭을 지속적으로 수집
+- **실시간 GC 모니터링**: 설정 가능한 간격과 알림 기능을 갖춘 GC 메트릭의 지속적 수집
 - **포괄적인 분석**: GC 빈도, 일시 정지 시간, 메모리 사용량, 할당 패턴의 상세 분석
-- **다양한 리포트 형식**: 텍스트, JSON, 테이블, Prometheus 형식의 리포트 생성
-- **헬스 모니터링**: 설정 가능한 알림 임계값을 가진 내장 헬스 체크
-- **메모리 트렌드 분석**: 시간에 따른 메모리 사용 패턴 추적
-- **일시 정지 시간 분포**: GC 일시 정지 시간 분포 및 백분위수 분석
+- **다양한 리포트 형식**: 텍스트, JSON, 요약 형식의 리포트 생성
+- **헬스 모니터링**: 설정 가능한 알림 임계값과 점수 시스템을 가진 내장 헬스 체크
+- **메모리 트렌드 분석**: 상세한 트렌드 데이터로 시간에 따른 메모리 사용 패턴 추적
+- **일시 정지 시간 분포**: GC 이벤트에서 일시 정지 시간 분포 및 백분위수 분석
 - **성능 권장사항**: GC 성능 최적화를 위한 자동화된 제안
-- **HTTP 엔드포인트**: 메트릭 노출을 위한 바로 사용 가능한 HTTP 서버
+- **간단한 API**: 단일 import 경로(`pkg/gcanalyzer`)를 가진 깔끔하고 직관적인 API
+- **모듈러 아키텍처**: 관심사 분리가 명확한 잘 구조화된 내부 패키지
 - **의존성 없음**: 외부 의존성이 없는 순수 Go 구현
 
 ## 📦 설치
@@ -36,20 +37,19 @@ import (
     "fmt"
     "time"
     
-    "github.com/kyungseok-lee/go-gc-analyzer/analyzer"
+    "github.com/kyungseok-lee/go-gc-analyzer/pkg/gcanalyzer"
 )
 
 func main() {
     // 10초간 GC 메트릭 수집
     ctx := context.Background()
-    metrics, err := analyzer.CollectForDuration(ctx, 10*time.Second, time.Second)
+    metrics, err := gcanalyzer.CollectForDuration(ctx, 10*time.Second, time.Second)
     if err != nil {
         panic(err)
     }
     
     // 수집된 메트릭 분석
-    gcAnalyzer := analyzer.NewAnalyzer(metrics)
-    analysis, err := gcAnalyzer.Analyze()
+    analysis, err := gcanalyzer.Analyze(metrics)
     if err != nil {
         panic(err)
     }
@@ -61,8 +61,7 @@ func main() {
     fmt.Printf("GC 오버헤드: %.2f%%\n", analysis.GCOverhead)
     
     // 리포트 생성
-    reporter := analyzer.NewReporter(analysis, metrics, nil)
-    reporter.GenerateSummaryReport(os.Stdout)
+    gcanalyzer.GenerateSummaryReport(analysis, os.Stdout)
 }
 ```
 
@@ -76,29 +75,29 @@ import (
     "log"
     "time"
     
-    "github.com/kyungseok-lee/go-gc-analyzer/analyzer"
+    "github.com/kyungseok-lee/go-gc-analyzer/pkg/gcanalyzer"
 )
 
 func main() {
-    config := &analyzer.CollectorConfig{
+    config := &gcanalyzer.MonitorConfig{
         Interval:   time.Second,
         MaxSamples: 300, // 5분간의 데이터 보관
-        OnMetricCollected: func(m *analyzer.GCMetrics) {
+        OnMetric: func(m *gcanalyzer.GCMetrics) {
             if m.GCCPUFraction > 0.1 {
                 log.Printf("높은 GC CPU 사용률: %.2f%%", m.GCCPUFraction*100)
             }
         },
-        OnGCEvent: func(e *analyzer.GCEvent) {
+        OnGCEvent: func(e *gcanalyzer.GCEvent) {
             if e.Duration > 10*time.Millisecond {
                 log.Printf("긴 GC 일시 정지: %v", e.Duration)
             }
         },
     }
     
-    collector := analyzer.NewCollector(config)
+    monitor := gcanalyzer.NewMonitor(config)
     
     ctx := context.Background()
-    err := collector.Start(ctx)
+    err := monitor.Start(ctx)
     if err != nil {
         panic(err)
     }
@@ -106,13 +105,12 @@ func main() {
     // 1분간 실행
     time.Sleep(1 * time.Minute)
     
-    collector.Stop()
+    monitor.Stop()
     
     // 수집된 데이터 분석
-    metrics := collector.GetMetrics()
+    metrics := monitor.GetMetrics()
     if len(metrics) >= 2 {
-        gcAnalyzer := analyzer.NewAnalyzer(metrics)
-        analysis, _ := gcAnalyzer.Analyze()
+        analysis, _ := gcanalyzer.Analyze(metrics)
         
         fmt.Printf("분석 완료: %d개의 권장사항\n", len(analysis.Recommendations))
         for _, rec := range analysis.Recommendations {
@@ -372,7 +370,7 @@ BenchmarkReporter_GenerateTextReport-8    10000     102345 ns/op   12345 B/op   
 Prometheus 형식으로 메트릭 내보내기:
 
 ```go
-reporter := analyzer.NewReporter(analysis, metrics, nil)
+reporter := gcanalyzer.NewReporter(analysis, metrics, nil)
 err := reporter.GenerateGrafanaMetrics(w)
 ```
 
