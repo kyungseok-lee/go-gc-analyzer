@@ -4,13 +4,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kyungseok-lee/go-gc-analyzer/analyzer"
+	"github.com/kyungseok-lee/go-gc-analyzer/pkg/gcanalyzer"
 )
 
 func TestAnalyzer_Analyze(t *testing.T) {
 	// Create test metrics data
 	now := time.Now()
-	metrics := []*analyzer.GCMetrics{
+	metrics := []*gcanalyzer.GCMetrics{
 		{
 			NumGC:         10,
 			PauseTotalNs:  1000000,         // 1ms total
@@ -33,8 +33,7 @@ func TestAnalyzer_Analyze(t *testing.T) {
 		},
 	}
 
-	analyzer := analyzer.NewAnalyzer(metrics)
-	analysis, err := analyzer.Analyze()
+	analysis, err := gcanalyzer.Analyze(metrics)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -65,15 +64,14 @@ func TestAnalyzer_Analyze(t *testing.T) {
 
 func TestAnalyzer_InsufficientData(t *testing.T) {
 	// Test with insufficient data
-	metrics := []*analyzer.GCMetrics{
+	metrics := []*gcanalyzer.GCMetrics{
 		{
 			NumGC:     10,
 			Timestamp: time.Now(),
 		},
 	}
 
-	analyzer := analyzer.NewAnalyzer(metrics)
-	_, err := analyzer.Analyze()
+	_, err := gcanalyzer.Analyze(metrics)
 
 	if err == nil {
 		t.Error("Expected error for insufficient data, got nil")
@@ -81,7 +79,7 @@ func TestAnalyzer_InsufficientData(t *testing.T) {
 }
 
 func TestAnalyzer_GetPauseTimeDistribution(t *testing.T) {
-	events := []*analyzer.GCEvent{
+	events := []*gcanalyzer.GCEvent{
 		{Duration: 500 * time.Microsecond}, // 0-1ms
 		{Duration: 2 * time.Millisecond},   // 1-5ms
 		{Duration: 7 * time.Millisecond},   // 5-10ms
@@ -90,8 +88,7 @@ func TestAnalyzer_GetPauseTimeDistribution(t *testing.T) {
 		{Duration: 150 * time.Millisecond}, // 100ms+
 	}
 
-	analyzer := analyzer.NewAnalyzerWithEvents(nil, events)
-	distribution := analyzer.GetPauseTimeDistribution()
+	distribution := gcanalyzer.GetPauseTimeDistribution(events)
 
 	expected := map[string]int{
 		"0-1ms":    1,
@@ -112,7 +109,7 @@ func TestAnalyzer_GetPauseTimeDistribution(t *testing.T) {
 
 func TestAnalyzer_GetMemoryTrend(t *testing.T) {
 	now := time.Now()
-	metrics := []*analyzer.GCMetrics{
+	metrics := []*gcanalyzer.GCMetrics{
 		{
 			HeapAlloc: 1024,
 			HeapSys:   2048,
@@ -127,8 +124,7 @@ func TestAnalyzer_GetMemoryTrend(t *testing.T) {
 		},
 	}
 
-	analyzer := analyzer.NewAnalyzer(metrics)
-	trend := analyzer.GetMemoryTrend()
+	trend := gcanalyzer.GetMemoryTrend(metrics)
 
 	if len(trend) != 2 {
 		t.Errorf("Expected 2 memory points, got %d", len(trend))
@@ -144,7 +140,7 @@ func TestAnalyzer_GetMemoryTrend(t *testing.T) {
 }
 
 func TestGCMetrics_NewGCMetrics(t *testing.T) {
-	metrics := analyzer.NewGCMetrics()
+	metrics := gcanalyzer.CollectOnce()
 
 	if metrics == nil {
 		t.Fatal("Expected metrics, got nil")
@@ -161,7 +157,7 @@ func TestGCMetrics_NewGCMetrics(t *testing.T) {
 }
 
 func TestGCMetrics_ToBytes(t *testing.T) {
-	metrics := &analyzer.GCMetrics{}
+	metrics := &gcanalyzer.GCMetrics{}
 
 	tests := []struct {
 		input    uint64
@@ -184,7 +180,7 @@ func TestGCMetrics_ToBytes(t *testing.T) {
 }
 
 func TestGCMetrics_ToDuration(t *testing.T) {
-	metrics := &analyzer.GCMetrics{}
+	metrics := &gcanalyzer.GCMetrics{}
 
 	tests := []struct {
 		input    uint64

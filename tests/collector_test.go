@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kyungseok-lee/go-gc-analyzer/analyzer"
+	"github.com/kyungseok-lee/go-gc-analyzer/pkg/gcanalyzer"
 )
 
 func TestCollector_StartStop(t *testing.T) {
-	collector := analyzer.NewCollector(nil)
+	collector := gcanalyzer.NewCollector(nil)
 
 	if collector.IsRunning() {
 		t.Error("Collector should not be running initially")
@@ -27,7 +27,7 @@ func TestCollector_StartStop(t *testing.T) {
 
 	// Try to start again - should return error
 	err = collector.Start(ctx)
-	if err != analyzer.ErrCollectorAlreadyRunning {
+	if err != gcanalyzer.ErrCollectorAlreadyRunning {
 		t.Errorf("Expected ErrCollectorAlreadyRunning, got %v", err)
 	}
 
@@ -42,21 +42,21 @@ func TestCollector_StartStop(t *testing.T) {
 }
 
 func TestCollector_Collection(t *testing.T) {
-	var collectedMetrics []*analyzer.GCMetrics
-	var collectedEvents []*analyzer.GCEvent
+	var collectedMetrics []*gcanalyzer.GCMetrics
+	var collectedEvents []*gcanalyzer.GCEvent
 
-	config := &analyzer.CollectorConfig{
+	config := &gcanalyzer.CollectorConfig{
 		Interval:   50 * time.Millisecond,
 		MaxSamples: 10,
-		OnMetricCollected: func(m *analyzer.GCMetrics) {
+		OnMetricCollected: func(m *gcanalyzer.GCMetrics) {
 			collectedMetrics = append(collectedMetrics, m)
 		},
-		OnGCEvent: func(e *analyzer.GCEvent) {
+		OnGCEvent: func(e *gcanalyzer.GCEvent) {
 			collectedEvents = append(collectedEvents, e)
 		},
 	}
 
-	collector := analyzer.NewCollector(config)
+	collector := gcanalyzer.NewCollector(config)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
@@ -90,12 +90,12 @@ func TestCollector_Collection(t *testing.T) {
 }
 
 func TestCollector_MaxSamples(t *testing.T) {
-	config := &analyzer.CollectorConfig{
+	config := &gcanalyzer.CollectorConfig{
 		Interval:   10 * time.Millisecond,
 		MaxSamples: 3,
 	}
 
-	collector := analyzer.NewCollector(config)
+	collector := gcanalyzer.NewCollector(config)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -118,7 +118,7 @@ func TestCollector_MaxSamples(t *testing.T) {
 }
 
 func TestCollector_GetLatestMetrics(t *testing.T) {
-	collector := analyzer.NewCollector(&analyzer.CollectorConfig{
+	collector := gcanalyzer.NewCollector(&gcanalyzer.CollectorConfig{
 		Interval: 50 * time.Millisecond,
 	})
 
@@ -156,7 +156,7 @@ func TestCollector_GetLatestMetrics(t *testing.T) {
 }
 
 func TestCollector_Clear(t *testing.T) {
-	collector := analyzer.NewCollector(&analyzer.CollectorConfig{
+	collector := gcanalyzer.NewCollector(&gcanalyzer.CollectorConfig{
 		Interval: 50 * time.Millisecond,
 	})
 
@@ -193,7 +193,7 @@ func TestCollector_Clear(t *testing.T) {
 }
 
 func TestCollector_ContextCancellation(t *testing.T) {
-	collector := analyzer.NewCollector(&analyzer.CollectorConfig{
+	collector := gcanalyzer.NewCollector(&gcanalyzer.CollectorConfig{
 		Interval: 10 * time.Millisecond,
 	})
 
@@ -227,7 +227,7 @@ func TestCollector_ContextCancellation(t *testing.T) {
 }
 
 func TestCollectOnce(t *testing.T) {
-	metrics := analyzer.CollectOnce()
+	metrics := gcanalyzer.CollectOnce()
 
 	if metrics == nil {
 		t.Fatal("Expected metrics, got nil")
@@ -243,7 +243,7 @@ func TestCollectForDuration(t *testing.T) {
 	duration := 100 * time.Millisecond
 	interval := 25 * time.Millisecond
 
-	metrics, err := analyzer.CollectForDuration(ctx, duration, interval)
+	metrics, err := gcanalyzer.CollectForDuration(ctx, duration, interval)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -278,7 +278,7 @@ func TestCollectForDuration_ContextCancel(t *testing.T) {
 		cancel()
 	}()
 
-	metrics, err := analyzer.CollectForDuration(ctx, duration, interval)
+	metrics, err := gcanalyzer.CollectForDuration(ctx, duration, interval)
 
 	if err != context.Canceled {
 		t.Errorf("Expected context.Canceled error, got %v", err)
@@ -295,7 +295,7 @@ func TestCollectForDuration_ContextCancel(t *testing.T) {
 
 func BenchmarkCollector_Start(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		collector := analyzer.NewCollector(&analyzer.CollectorConfig{
+		collector := gcanalyzer.NewCollector(&gcanalyzer.CollectorConfig{
 			Interval: time.Second, // Long interval to avoid actual collection
 		})
 
@@ -311,7 +311,7 @@ func BenchmarkCollector_Start(b *testing.B) {
 
 func BenchmarkCollectOnce_Collector(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		metrics := analyzer.CollectOnce()
+		metrics := gcanalyzer.CollectOnce()
 		if metrics == nil {
 			b.Fatal("Expected metrics")
 		}

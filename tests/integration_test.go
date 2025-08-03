@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kyungseok-lee/go-gc-analyzer/analyzer"
+	"github.com/kyungseok-lee/go-gc-analyzer/pkg/gcanalyzer"
 )
 
 func TestIntegration_FullAnalysisFlow(t *testing.T) {
@@ -18,7 +18,7 @@ func TestIntegration_FullAnalysisFlow(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	metrics, err := analyzer.CollectForDuration(ctx, 2*time.Second, 100*time.Millisecond)
+	metrics, err := gcanalyzer.CollectForDuration(ctx, 2*time.Second, 100*time.Millisecond)
 	if err != nil {
 		t.Fatalf("Failed to collect metrics: %v", err)
 	}
@@ -28,7 +28,7 @@ func TestIntegration_FullAnalysisFlow(t *testing.T) {
 	}
 
 	// Analyze the collected metrics
-	gcAnalyzer := analyzer.NewAnalyzer(metrics)
+	gcAnalyzer := gcanalyzer.NewAnalyzer(metrics)
 	analysis, err := gcAnalyzer.Analyze()
 	if err != nil {
 		t.Fatalf("Failed to analyze metrics: %v", err)
@@ -48,7 +48,7 @@ func TestIntegration_FullAnalysisFlow(t *testing.T) {
 	}
 
 	// Generate reports
-	reporter := analyzer.NewReporter(analysis, metrics, nil)
+	reporter := gcanalyzer.NewReporter(analysis, metrics, nil)
 
 	// Test text report generation
 	var textReport strings.Builder
@@ -107,21 +107,21 @@ func TestIntegration_FullAnalysisFlow(t *testing.T) {
 
 func TestIntegration_CollectorWithAnalysis(t *testing.T) {
 	// Setup collector with callbacks
-	var collectedMetrics []*analyzer.GCMetrics
-	var events []*analyzer.GCEvent
+	var collectedMetrics []*gcanalyzer.GCMetrics
+	var events []*gcanalyzer.GCEvent
 
-	config := &analyzer.CollectorConfig{
+	config := &gcanalyzer.CollectorConfig{
 		Interval:   100 * time.Millisecond,
 		MaxSamples: 50,
-		OnMetricCollected: func(m *analyzer.GCMetrics) {
+		OnMetricCollected: func(m *gcanalyzer.GCMetrics) {
 			collectedMetrics = append(collectedMetrics, m)
 		},
-		OnGCEvent: func(e *analyzer.GCEvent) {
+		OnGCEvent: func(e *gcanalyzer.GCEvent) {
 			events = append(events, e)
 		},
 	}
 
-	collector := analyzer.NewCollector(config)
+	collector := gcanalyzer.NewCollector(config)
 
 	// Start collection
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -157,7 +157,7 @@ func TestIntegration_CollectorWithAnalysis(t *testing.T) {
 
 	// Analyze collected data
 	if len(finalMetrics) >= 2 {
-		gcAnalyzer := analyzer.NewAnalyzerWithEvents(finalMetrics, collector.GetEvents())
+		gcAnalyzer := gcanalyzer.NewAnalyzerWithEvents(finalMetrics, collector.GetEvents())
 		analysis, err := gcAnalyzer.Analyze()
 		if err != nil {
 			t.Errorf("Failed to analyze collected metrics: %v", err)
@@ -188,7 +188,7 @@ func TestIntegration_MemoryTrendAnalysis(t *testing.T) {
 		_ = allocations // Prevent compiler optimization
 	}()
 
-	metrics, err := analyzer.CollectForDuration(ctx, 1*time.Second, 50*time.Millisecond)
+	metrics, err := gcanalyzer.CollectForDuration(ctx, 1*time.Second, 50*time.Millisecond)
 	if err != nil {
 		t.Fatalf("Failed to collect metrics: %v", err)
 	}
@@ -197,7 +197,7 @@ func TestIntegration_MemoryTrendAnalysis(t *testing.T) {
 		t.Fatal("Need at least 2 metrics for trend analysis")
 	}
 
-	gcAnalyzer := analyzer.NewAnalyzer(metrics)
+	gcAnalyzer := gcanalyzer.NewAnalyzer(metrics)
 
 	// Test memory trend analysis
 	memoryTrend := gcAnalyzer.GetMemoryTrend()
@@ -237,7 +237,7 @@ func TestIntegration_PauseTimeDistribution(t *testing.T) {
 
 	// Collect some metrics
 	ctx := context.Background()
-	metrics, err := analyzer.CollectForDuration(ctx, 500*time.Millisecond, 50*time.Millisecond)
+	metrics, err := gcanalyzer.CollectForDuration(ctx, 500*time.Millisecond, 50*time.Millisecond)
 	if err != nil {
 		t.Fatalf("Failed to collect metrics: %v", err)
 	}
@@ -247,7 +247,7 @@ func TestIntegration_PauseTimeDistribution(t *testing.T) {
 	}
 
 	// Create analyzer and check pause time distribution
-	gcAnalyzer := analyzer.NewAnalyzer(metrics)
+	gcAnalyzer := gcanalyzer.NewAnalyzer(metrics)
 	distribution := gcAnalyzer.GetPauseTimeDistribution()
 
 	// Verify all expected buckets exist
@@ -269,7 +269,7 @@ func TestIntegration_PauseTimeDistribution(t *testing.T) {
 func TestIntegration_ReporterFormats(t *testing.T) {
 	// Collect some metrics
 	ctx := context.Background()
-	metrics, err := analyzer.CollectForDuration(ctx, 500*time.Millisecond, 100*time.Millisecond)
+	metrics, err := gcanalyzer.CollectForDuration(ctx, 500*time.Millisecond, 100*time.Millisecond)
 	if err != nil {
 		t.Fatalf("Failed to collect metrics: %v", err)
 	}
@@ -279,13 +279,13 @@ func TestIntegration_ReporterFormats(t *testing.T) {
 	}
 
 	// Analyze
-	gcAnalyzer := analyzer.NewAnalyzer(metrics)
+	gcAnalyzer := gcanalyzer.NewAnalyzer(metrics)
 	analysis, err := gcAnalyzer.Analyze()
 	if err != nil {
 		t.Fatalf("Failed to analyze: %v", err)
 	}
 
-	reporter := analyzer.NewReporter(analysis, metrics, nil)
+	reporter := gcanalyzer.NewReporter(analysis, metrics, nil)
 
 	// Test all report formats
 	formats := []struct {

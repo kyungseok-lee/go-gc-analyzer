@@ -1,4 +1,4 @@
-package analyzer
+package reporting
 
 import (
 	"encoding/json"
@@ -6,17 +6,19 @@ import (
 	"io"
 	"text/tabwriter"
 	"time"
+
+	"github.com/kyungseok-lee/go-gc-analyzer/pkg/types"
 )
 
 // Reporter provides various reporting formats for GC analysis
 type Reporter struct {
-	analysis *GCAnalysis
-	metrics  []*GCMetrics
-	events   []*GCEvent
+	analysis *types.GCAnalysis
+	metrics  []*types.GCMetrics
+	events   []*types.GCEvent
 }
 
-// NewReporter creates a new reporter
-func NewReporter(analysis *GCAnalysis, metrics []*GCMetrics, events []*GCEvent) *Reporter {
+// New creates a new reporter
+func New(analysis *types.GCAnalysis, metrics []*types.GCMetrics, events []*types.GCEvent) *Reporter {
 	return &Reporter{
 		analysis: analysis,
 		metrics:  metrics,
@@ -84,9 +86,9 @@ func (r *Reporter) GenerateTextReport(w io.Writer) error {
 // GenerateJSONReport generates a JSON report
 func (r *Reporter) GenerateJSONReport(w io.Writer, indent bool) error {
 	report := struct {
-		Analysis *GCAnalysis  `json:"analysis"`
-		Metrics  []*GCMetrics `json:"metrics,omitempty"`
-		Events   []*GCEvent   `json:"events,omitempty"`
+		Analysis *types.GCAnalysis  `json:"analysis"`
+		Metrics  []*types.GCMetrics `json:"metrics,omitempty"`
+		Events   []*types.GCEvent   `json:"events,omitempty"`
 	}{
 		Analysis: r.analysis,
 		Metrics:  r.metrics,
@@ -241,33 +243,10 @@ func (r *Reporter) GenerateGrafanaMetrics(w io.Writer) error {
 	return nil
 }
 
-// formatBytes formats bytes into human-readable format
-func formatBytes(bytes uint64) string {
-	const unit = 1024
-	if bytes < unit {
-		return fmt.Sprintf("%d B", bytes)
-	}
-	div, exp := int64(unit), 0
-	for n := bytes / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
-}
-
-// HealthCheckStatus represents the health status based on GC analysis
-type HealthCheckStatus struct {
-	Status      string    `json:"status"` // healthy, warning, critical
-	Score       int       `json:"score"`  // 0-100
-	Issues      []string  `json:"issues"`
-	Summary     string    `json:"summary"`
-	LastUpdated time.Time `json:"last_updated"`
-}
-
 // GenerateHealthCheck generates a health check status based on GC metrics
-func (r *Reporter) GenerateHealthCheck() *HealthCheckStatus {
+func (r *Reporter) GenerateHealthCheck() *types.HealthCheckStatus {
 	if r.analysis == nil {
-		return &HealthCheckStatus{
+		return &types.HealthCheckStatus{
 			Status:      "unknown",
 			Score:       0,
 			Issues:      []string{"No analysis data available"},
@@ -276,7 +255,7 @@ func (r *Reporter) GenerateHealthCheck() *HealthCheckStatus {
 		}
 	}
 
-	status := &HealthCheckStatus{
+	status := &types.HealthCheckStatus{
 		Status:      "healthy",
 		Score:       100,
 		Issues:      make([]string, 0),
@@ -331,4 +310,18 @@ func (r *Reporter) GenerateHealthCheck() *HealthCheckStatus {
 	}
 
 	return status
+}
+
+// formatBytes formats bytes into human-readable format
+func formatBytes(bytes uint64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }

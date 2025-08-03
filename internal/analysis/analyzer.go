@@ -1,25 +1,27 @@
-package analyzer
+package analysis
 
 import (
 	"sort"
 	"time"
+
+	"github.com/kyungseok-lee/go-gc-analyzer/pkg/types"
 )
 
 // Analyzer provides GC performance analysis capabilities
 type Analyzer struct {
-	metrics []*GCMetrics
-	events  []*GCEvent
+	metrics []*types.GCMetrics
+	events  []*types.GCEvent
 }
 
-// NewAnalyzer creates a new analyzer with the provided metrics
-func NewAnalyzer(metrics []*GCMetrics) *Analyzer {
+// New creates a new analyzer with the provided metrics
+func New(metrics []*types.GCMetrics) *Analyzer {
 	return &Analyzer{
 		metrics: metrics,
 	}
 }
 
-// NewAnalyzerWithEvents creates a new analyzer with metrics and events
-func NewAnalyzerWithEvents(metrics []*GCMetrics, events []*GCEvent) *Analyzer {
+// NewWithEvents creates a new analyzer with metrics and events
+func NewWithEvents(metrics []*types.GCMetrics, events []*types.GCEvent) *Analyzer {
 	return &Analyzer{
 		metrics: metrics,
 		events:  events,
@@ -27,15 +29,15 @@ func NewAnalyzerWithEvents(metrics []*GCMetrics, events []*GCEvent) *Analyzer {
 }
 
 // Analyze performs comprehensive GC analysis
-func (a *Analyzer) Analyze() (*GCAnalysis, error) {
+func (a *Analyzer) Analyze() (*types.GCAnalysis, error) {
 	if len(a.metrics) < 2 {
-		return nil, ErrInsufficientData
+		return nil, types.ErrInsufficientData
 	}
 
 	first := a.metrics[0]
 	last := a.metrics[len(a.metrics)-1]
 
-	analysis := &GCAnalysis{
+	analysis := &types.GCAnalysis{
 		Period:    last.Timestamp.Sub(first.Timestamp),
 		StartTime: first.Timestamp,
 		EndTime:   last.Timestamp,
@@ -63,7 +65,7 @@ func (a *Analyzer) Analyze() (*GCAnalysis, error) {
 }
 
 // analyzeGCFrequency analyzes GC frequency patterns
-func (a *Analyzer) analyzeGCFrequency(analysis *GCAnalysis) {
+func (a *Analyzer) analyzeGCFrequency(analysis *types.GCAnalysis) {
 	if len(a.metrics) < 2 {
 		return
 	}
@@ -83,7 +85,7 @@ func (a *Analyzer) analyzeGCFrequency(analysis *GCAnalysis) {
 }
 
 // analyzePauseTimes analyzes GC pause time statistics
-func (a *Analyzer) analyzePauseTimes(analysis *GCAnalysis) {
+func (a *Analyzer) analyzePauseTimes(analysis *types.GCAnalysis) {
 	if len(a.events) == 0 {
 		// Fallback to analyzing pause data from metrics
 		a.analyzePauseTimesFromMetrics(analysis)
@@ -123,7 +125,7 @@ func (a *Analyzer) analyzePauseTimes(analysis *GCAnalysis) {
 }
 
 // analyzePauseTimesFromMetrics analyzes pause times from metrics when events are not available
-func (a *Analyzer) analyzePauseTimesFromMetrics(analysis *GCAnalysis) {
+func (a *Analyzer) analyzePauseTimesFromMetrics(analysis *types.GCAnalysis) {
 	if len(a.metrics) < 2 {
 		return
 	}
@@ -171,7 +173,7 @@ func (a *Analyzer) analyzePauseTimesFromMetrics(analysis *GCAnalysis) {
 }
 
 // analyzeMemoryUsage analyzes memory usage patterns
-func (a *Analyzer) analyzeMemoryUsage(analysis *GCAnalysis) {
+func (a *Analyzer) analyzeMemoryUsage(analysis *types.GCAnalysis) {
 	if len(a.metrics) == 0 {
 		return
 	}
@@ -210,7 +212,7 @@ func (a *Analyzer) analyzeMemoryUsage(analysis *GCAnalysis) {
 }
 
 // analyzeAllocations analyzes allocation patterns
-func (a *Analyzer) analyzeAllocations(analysis *GCAnalysis) {
+func (a *Analyzer) analyzeAllocations(analysis *types.GCAnalysis) {
 	if len(a.metrics) < 2 {
 		return
 	}
@@ -231,7 +233,7 @@ func (a *Analyzer) analyzeAllocations(analysis *GCAnalysis) {
 }
 
 // calculateEfficiencyMetrics calculates GC efficiency metrics
-func (a *Analyzer) calculateEfficiencyMetrics(analysis *GCAnalysis) {
+func (a *Analyzer) calculateEfficiencyMetrics(analysis *types.GCAnalysis) {
 	if len(a.metrics) == 0 {
 		return
 	}
@@ -266,7 +268,7 @@ func (a *Analyzer) calculateEfficiencyMetrics(analysis *GCAnalysis) {
 }
 
 // generateRecommendations generates performance improvement recommendations
-func (a *Analyzer) generateRecommendations(analysis *GCAnalysis) {
+func (a *Analyzer) generateRecommendations(analysis *types.GCAnalysis) {
 	recommendations := make([]string, 0)
 
 	// High GC frequency recommendations
@@ -386,11 +388,11 @@ func (a *Analyzer) GetPauseTimeDistribution() map[string]int {
 }
 
 // GetMemoryTrend returns memory usage trend over time
-func (a *Analyzer) GetMemoryTrend() []MemoryPoint {
-	points := make([]MemoryPoint, len(a.metrics))
+func (a *Analyzer) GetMemoryTrend() []types.MemoryPoint {
+	points := make([]types.MemoryPoint, len(a.metrics))
 
 	for i, metrics := range a.metrics {
-		points[i] = MemoryPoint{
+		points[i] = types.MemoryPoint{
 			Timestamp: metrics.Timestamp,
 			HeapAlloc: metrics.HeapAlloc,
 			HeapSys:   metrics.HeapSys,
@@ -399,12 +401,4 @@ func (a *Analyzer) GetMemoryTrend() []MemoryPoint {
 	}
 
 	return points
-}
-
-// MemoryPoint represents a point in memory usage trend
-type MemoryPoint struct {
-	Timestamp time.Time `json:"timestamp"`
-	HeapAlloc uint64    `json:"heap_alloc"`
-	HeapSys   uint64    `json:"heap_sys"`
-	HeapInuse uint64    `json:"heap_inuse"`
 }

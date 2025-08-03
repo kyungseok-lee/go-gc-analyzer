@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kyungseok-lee/go-gc-analyzer/analyzer"
+	"github.com/kyungseok-lee/go-gc-analyzer/pkg/gcanalyzer"
 )
 
 func main() {
@@ -42,43 +42,43 @@ func main() {
 // runContinuousMonitoring demonstrates continuous GC monitoring with real-time callbacks
 func runContinuousMonitoring() {
 	var mu sync.Mutex
-	var metrics []*analyzer.GCMetrics
-	var events []*analyzer.GCEvent
+	var metrics []*gcanalyzer.GCMetrics
+	var events []*gcanalyzer.GCEvent
 
-	config := &analyzer.CollectorConfig{
+		config := &gcanalyzer.MonitorConfig{
 		Interval:   200 * time.Millisecond,
 		MaxSamples: 100,
-		OnMetricCollected: func(m *analyzer.GCMetrics) {
+		OnMetric: func(m *gcanalyzer.GCMetrics) {
 			mu.Lock()
 			defer mu.Unlock()
 			metrics = append(metrics, m)
-
+			
 			// Real-time alerting example
 			if m.GCCPUFraction > 0.1 { // More than 10% CPU in GC
 				fmt.Printf("   ⚠️  High GC CPU usage detected: %.2f%%\n", m.GCCPUFraction*100)
 			}
 		},
-		OnGCEvent: func(e *analyzer.GCEvent) {
+		OnGCEvent: func(e *gcanalyzer.GCEvent) {
 			mu.Lock()
 			defer mu.Unlock()
 			events = append(events, e)
-
+			
 			// Alert on long pauses
 			if e.Duration > 10*time.Millisecond {
 				fmt.Printf("   ⚠️  Long GC pause detected: %v\n", e.Duration.Round(time.Microsecond))
 			}
 		},
 	}
-
-	collector := analyzer.NewCollector(config)
+	
+	monitor := gcanalyzer.NewMonitor(config)
 
 	// Start monitoring
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	err := collector.Start(ctx)
+	err := monitor.Start(ctx)
 	if err != nil {
-		log.Fatalf("Failed to start collector: %v", err)
+		log.Fatalf("Failed to start monitor: %v", err)
 	}
 
 	// Generate workload while monitoring
@@ -88,7 +88,7 @@ func runContinuousMonitoring() {
 
 	fmt.Println("   Monitoring for 3 seconds...")
 	<-ctx.Done()
-	collector.Stop()
+	monitor.Stop()
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -115,7 +115,7 @@ func analyzeWorkloadPatterns() {
 		// Start workload
 		go pattern.fn(ctx)
 
-		metrics, err := analyzer.CollectForDuration(ctx, 2*time.Second, 200*time.Millisecond)
+		metrics, err := gcanalyzer.CollectForDuration(ctx, 2*time.Second, 200*time.Millisecond)
 		cancel()
 
 		if err != nil {
@@ -129,8 +129,7 @@ func analyzeWorkloadPatterns() {
 		}
 
 		// Analyze the pattern
-		gcAnalyzer := analyzer.NewAnalyzer(metrics)
-		analysis, err := gcAnalyzer.Analyze()
+		analysis, err := gcanalyzer.Analyze(metrics)
 		if err != nil {
 			log.Printf("Failed to analyze %s: %v", pattern.name, err)
 			continue
@@ -158,7 +157,7 @@ func analyzeMemoryTrends() {
 
 	go generateGrowingMemoryWorkload(ctx)
 
-	metrics, err := analyzer.CollectForDuration(ctx, 3*time.Second, 300*time.Millisecond)
+	metrics, err := gcanalyzer.CollectForDuration(ctx, 3*time.Second, 300*time.Millisecond)
 	if err != nil {
 		log.Printf("Failed to collect metrics: %v", err)
 		return
@@ -169,8 +168,7 @@ func analyzeMemoryTrends() {
 		return
 	}
 
-	gcAnalyzer := analyzer.NewAnalyzer(metrics)
-	memoryTrend := gcAnalyzer.GetMemoryTrend()
+	memoryTrend := gcanalyzer.GetMemoryTrend(metrics)
 
 	fmt.Printf("   Memory Trend Analysis (%d data points):\n", len(memoryTrend))
 
@@ -201,7 +199,7 @@ func analyzeMemoryTrends() {
 func generateAdvancedReports() {
 	// Collect some sample data
 	ctx := context.Background()
-	metrics, err := analyzer.CollectForDuration(ctx, 1*time.Second, 200*time.Millisecond)
+	metrics, err := gcanalyzer.CollectForDuration(ctx, 1*time.Second, 200*time.Millisecond)
 	if err != nil {
 		log.Printf("Failed to collect metrics: %v", err)
 		return
@@ -212,22 +210,19 @@ func generateAdvancedReports() {
 		return
 	}
 
-	gcAnalyzer := analyzer.NewAnalyzer(metrics)
-	analysis, err := gcAnalyzer.Analyze()
+	analysis, err := gcanalyzer.Analyze(metrics)
 	if err != nil {
 		log.Printf("Failed to analyze metrics: %v", err)
 		return
 	}
 
-	reporter := analyzer.NewReporter(analysis, metrics, nil)
-
-	// 1. JSON Report
+		// 1. JSON Report
 	fmt.Println("   Generating JSON report...")
 	jsonFile, err := os.Create("gc_analysis.json")
 	if err != nil {
 		log.Printf("Failed to create JSON file: %v", err)
 	} else {
-		err = reporter.GenerateJSONReport(jsonFile, true)
+		err = gcanalyzer.GenerateJSONReport(analysis, metrics, nil, jsonFile, true)
 		jsonFile.Close()
 		if err != nil {
 			log.Printf("Failed to generate JSON report: %v", err)
@@ -235,29 +230,14 @@ func generateAdvancedReports() {
 			fmt.Println("     ✅ JSON report saved to gc_analysis.json")
 		}
 	}
-
-	// 2. Prometheus/Grafana metrics
-	fmt.Println("   Generating Prometheus metrics...")
-	promFile, err := os.Create("gc_metrics.prom")
-	if err != nil {
-		log.Printf("Failed to create Prometheus file: %v", err)
-	} else {
-		err = reporter.GenerateGrafanaMetrics(promFile)
-		promFile.Close()
-		if err != nil {
-			log.Printf("Failed to generate Prometheus metrics: %v", err)
-		} else {
-			fmt.Println("     ✅ Prometheus metrics saved to gc_metrics.prom")
-		}
-	}
-
-	// 3. Detailed text report
+	
+	// 2. Detailed text report
 	fmt.Println("   Generating detailed text report...")
 	textFile, err := os.Create("gc_analysis.txt")
 	if err != nil {
 		log.Printf("Failed to create text file: %v", err)
 	} else {
-		err = reporter.GenerateTextReport(textFile)
+		err = gcanalyzer.GenerateTextReport(analysis, metrics, nil, textFile)
 		textFile.Close()
 		if err != nil {
 			log.Printf("Failed to generate text report: %v", err)
@@ -266,9 +246,9 @@ func generateAdvancedReports() {
 		}
 	}
 
-	// 4. Health check as JSON
+	// 3. Health check as JSON
 	fmt.Println("   Generating health check...")
-	healthCheck := reporter.GenerateHealthCheck()
+	healthCheck := gcanalyzer.GenerateHealthCheck(analysis)
 	healthFile, err := os.Create("gc_health.json")
 	if err != nil {
 		log.Printf("Failed to create health file: %v", err)
@@ -297,7 +277,7 @@ func compareGCPerformance() {
 	}()
 
 	gogcValues := []string{"100", "200", "50"}
-	results := make(map[string]*analyzer.GCAnalysis)
+	results := make(map[string]*gcanalyzer.GCAnalysis)
 
 	for _, gogc := range gogcValues {
 		fmt.Printf("     Testing with GOGC=%s\n", gogc)
@@ -310,7 +290,7 @@ func compareGCPerformance() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		go generateConsistentWorkload(ctx)
 
-		metrics, err := analyzer.CollectForDuration(ctx, 2*time.Second, 250*time.Millisecond)
+		metrics, err := gcanalyzer.CollectForDuration(ctx, 2*time.Second, 250*time.Millisecond)
 		cancel()
 
 		if err != nil {
@@ -323,8 +303,7 @@ func compareGCPerformance() {
 			continue
 		}
 
-		gcAnalyzer := analyzer.NewAnalyzer(metrics)
-		analysis, err := gcAnalyzer.Analyze()
+		analysis, err := gcanalyzer.Analyze(metrics)
 		if err != nil {
 			log.Printf("Failed to analyze GOGC=%s: %v", gogc, err)
 			continue

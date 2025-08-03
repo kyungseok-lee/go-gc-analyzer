@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kyungseok-lee/go-gc-analyzer/analyzer"
+	"github.com/kyungseok-lee/go-gc-analyzer/pkg/gcanalyzer"
 )
 
 func main() {
@@ -17,7 +17,7 @@ func main() {
 
 	// Example 1: Single point-in-time collection
 	fmt.Println("1. Single Metrics Collection:")
-	singleMetrics := analyzer.CollectOnce()
+	singleMetrics := gcanalyzer.CollectOnce()
 	fmt.Printf("   Current GC count: %d\n", singleMetrics.NumGC)
 	fmt.Printf("   Current heap size: %s\n", singleMetrics.ToBytes(singleMetrics.HeapAlloc))
 	fmt.Printf("   GC CPU fraction: %.2f%%\n\n", singleMetrics.GCCPUFraction*100)
@@ -31,7 +31,7 @@ func main() {
 	go generateWorkload(ctx)
 
 	// Collect metrics for 5 seconds with 500ms intervals
-	metrics, err := analyzer.CollectForDuration(
+	metrics, err := gcanalyzer.CollectForDuration(
 		context.Background(),
 		5*time.Second,
 		500*time.Millisecond,
@@ -62,8 +62,7 @@ func main() {
 		return
 	}
 
-	gcAnalyzer := analyzer.NewAnalyzer(metrics)
-	analysis, err := gcAnalyzer.Analyze()
+	analysis, err := gcanalyzer.Analyze(metrics)
 	if err != nil {
 		log.Fatalf("Failed to analyze metrics: %v", err)
 	}
@@ -81,18 +80,16 @@ func main() {
 	// Example 4: Generate reports
 	fmt.Println("\n4. Generate Reports:")
 
-	reporter := analyzer.NewReporter(analysis, metrics, nil)
-
 	// Generate summary report
 	fmt.Println("   Summary Report:")
 	fmt.Println("   " + strings.Repeat("-", 50))
-	err = reporter.GenerateSummaryReport(os.Stdout)
+	err = gcanalyzer.GenerateSummaryReport(analysis, os.Stdout)
 	if err != nil {
 		log.Printf("Failed to generate summary report: %v", err)
 	}
 
 	// Generate health check
-	healthCheck := reporter.GenerateHealthCheck()
+	healthCheck := gcanalyzer.GenerateHealthCheck(analysis)
 	fmt.Printf("\n   Health Check: %s (Score: %d/100)\n",
 		healthCheck.Status, healthCheck.Score)
 

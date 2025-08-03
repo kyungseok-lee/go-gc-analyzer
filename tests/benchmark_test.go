@@ -7,14 +7,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kyungseok-lee/go-gc-analyzer/analyzer"
+	"github.com/kyungseok-lee/go-gc-analyzer/pkg/gcanalyzer"
 )
 
 // BenchmarkCollectOnce_Benchmark measures the performance of single metric collection
 func BenchmarkCollectOnce_Benchmark(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		metrics := analyzer.CollectOnce()
+		metrics := gcanalyzer.CollectOnce()
 		if metrics == nil {
 			b.Fatal("Expected metrics")
 		}
@@ -25,7 +25,7 @@ func BenchmarkCollectOnce_Benchmark(b *testing.B) {
 func BenchmarkNewGCMetrics(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		metrics := analyzer.NewGCMetrics()
+		metrics := gcanalyzer.NewGCMetrics()
 		if metrics == nil {
 			b.Fatal("Expected metrics")
 		}
@@ -40,7 +40,7 @@ func BenchmarkAnalyzer_Analyze_Benchmark(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		gcAnalyzer := analyzer.NewAnalyzerWithEvents(metrics, events)
+		gcAnalyzer := gcanalyzer.NewAnalyzerWithEvents(metrics, events)
 		analysis, err := gcAnalyzer.Analyze()
 		if err != nil {
 			b.Fatal(err)
@@ -57,7 +57,7 @@ func BenchmarkAnalyzer_AnalyzeSmallDataset(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		gcAnalyzer := analyzer.NewAnalyzer(metrics)
+		gcAnalyzer := gcanalyzer.NewAnalyzer(metrics)
 		analysis, err := gcAnalyzer.Analyze()
 		if err != nil {
 			b.Fatal(err)
@@ -75,7 +75,7 @@ func BenchmarkAnalyzer_AnalyzeLargeDataset(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		gcAnalyzer := analyzer.NewAnalyzerWithEvents(metrics, events)
+		gcAnalyzer := gcanalyzer.NewAnalyzerWithEvents(metrics, events)
 		analysis, err := gcAnalyzer.Analyze()
 		if err != nil {
 			b.Fatal(err)
@@ -89,7 +89,7 @@ func BenchmarkAnalyzer_AnalyzeLargeDataset(b *testing.B) {
 // BenchmarkAnalyzer_GetMemoryTrend measures memory trend calculation performance
 func BenchmarkAnalyzer_GetMemoryTrend(b *testing.B) {
 	metrics := generateTestMetrics(100)
-	gcAnalyzer := analyzer.NewAnalyzer(metrics)
+	gcAnalyzer := gcanalyzer.NewAnalyzer(metrics)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -103,7 +103,7 @@ func BenchmarkAnalyzer_GetMemoryTrend(b *testing.B) {
 // BenchmarkAnalyzer_GetPauseTimeDistribution measures pause time distribution calculation
 func BenchmarkAnalyzer_GetPauseTimeDistribution(b *testing.B) {
 	events := generateTestEvents(100)
-	gcAnalyzer := analyzer.NewAnalyzerWithEvents(nil, events)
+	gcAnalyzer := gcanalyzer.NewAnalyzerWithEvents(nil, events)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -119,10 +119,10 @@ func BenchmarkReporter_GenerateTextReport(b *testing.B) {
 	metrics := generateTestMetrics(50)
 	events := generateTestEvents(25)
 
-	gcAnalyzer := analyzer.NewAnalyzerWithEvents(metrics, events)
+	gcAnalyzer := gcanalyzer.NewAnalyzerWithEvents(metrics, events)
 	analysis, _ := gcAnalyzer.Analyze()
 
-	reporter := analyzer.NewReporter(analysis, metrics, events)
+	reporter := gcanalyzer.NewReporter(analysis, metrics, events)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -139,10 +139,10 @@ func BenchmarkReporter_GenerateJSONReport(b *testing.B) {
 	metrics := generateTestMetrics(50)
 	events := generateTestEvents(25)
 
-	gcAnalyzer := analyzer.NewAnalyzerWithEvents(metrics, events)
+	gcAnalyzer := gcanalyzer.NewAnalyzerWithEvents(metrics, events)
 	analysis, _ := gcAnalyzer.Analyze()
 
-	reporter := analyzer.NewReporter(analysis, metrics, events)
+	reporter := gcanalyzer.NewReporter(analysis, metrics, events)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -158,10 +158,10 @@ func BenchmarkReporter_GenerateJSONReport(b *testing.B) {
 func BenchmarkReporter_GenerateTableReport(b *testing.B) {
 	metrics := generateTestMetrics(50)
 
-	gcAnalyzer := analyzer.NewAnalyzer(metrics)
+	gcAnalyzer := gcanalyzer.NewAnalyzer(metrics)
 	analysis, _ := gcAnalyzer.Analyze()
 
-	reporter := analyzer.NewReporter(analysis, metrics, nil)
+	reporter := gcanalyzer.NewReporter(analysis, metrics, nil)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -177,10 +177,10 @@ func BenchmarkReporter_GenerateTableReport(b *testing.B) {
 func BenchmarkReporter_GenerateHealthCheck(b *testing.B) {
 	metrics := generateTestMetrics(50)
 
-	gcAnalyzer := analyzer.NewAnalyzer(metrics)
+	gcAnalyzer := gcanalyzer.NewAnalyzer(metrics)
 	analysis, _ := gcAnalyzer.Analyze()
 
-	reporter := analyzer.NewReporter(analysis, metrics, nil)
+	reporter := gcanalyzer.NewReporter(analysis, metrics, nil)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -195,7 +195,7 @@ func BenchmarkReporter_GenerateHealthCheck(b *testing.B) {
 func BenchmarkCollector_StartStop(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		collector := analyzer.NewCollector(&analyzer.CollectorConfig{
+		collector := gcanalyzer.NewCollector(&gcanalyzer.CollectorConfig{
 			Interval: time.Hour, // Very long interval to avoid actual collection
 		})
 
@@ -213,15 +213,15 @@ func BenchmarkCollector_StartStop(b *testing.B) {
 func BenchmarkCollector_Collection(b *testing.B) {
 	var collectedCount int
 
-	config := &analyzer.CollectorConfig{
+	config := &gcanalyzer.CollectorConfig{
 		Interval:   time.Millisecond, // Very fast collection
 		MaxSamples: 1000,
-		OnMetricCollected: func(m *analyzer.GCMetrics) {
+		OnMetricCollected: func(m *gcanalyzer.GCMetrics) {
 			collectedCount++
 		},
 	}
 
-	collector := analyzer.NewCollector(config)
+	collector := gcanalyzer.NewCollector(config)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(b.N)*time.Millisecond)
 	defer cancel()
@@ -248,7 +248,7 @@ func BenchmarkRealWorldScenario(b *testing.B) {
 		// Simulate collecting metrics for 1 second
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 
-		metrics, err := analyzer.CollectForDuration(ctx, 100*time.Millisecond, 10*time.Millisecond)
+		metrics, err := gcanalyzer.CollectForDuration(ctx, 100*time.Millisecond, 10*time.Millisecond)
 		cancel()
 
 		if err != nil {
@@ -260,14 +260,14 @@ func BenchmarkRealWorldScenario(b *testing.B) {
 		}
 
 		// Analyze the metrics
-		gcAnalyzer := analyzer.NewAnalyzer(metrics)
+		gcAnalyzer := gcanalyzer.NewAnalyzer(metrics)
 		analysis, err := gcAnalyzer.Analyze()
 		if err != nil {
 			b.Fatal(err)
 		}
 
 		// Generate a report
-		reporter := analyzer.NewReporter(analysis, metrics, nil)
+		reporter := gcanalyzer.NewReporter(analysis, metrics, nil)
 		var buf strings.Builder
 		err = reporter.GenerateSummaryReport(&buf)
 		if err != nil {
@@ -295,13 +295,13 @@ func BenchmarkMemoryUsage(b *testing.B) {
 	runtime.ReadMemStats(&m1)
 
 	for i := 0; i < b.N; i++ {
-		gcAnalyzer := analyzer.NewAnalyzerWithEvents(metrics, events)
+		gcAnalyzer := gcanalyzer.NewAnalyzerWithEvents(metrics, events)
 		analysis, err := gcAnalyzer.Analyze()
 		if err != nil {
 			b.Fatal(err)
 		}
 
-		reporter := analyzer.NewReporter(analysis, metrics, events)
+		reporter := gcanalyzer.NewReporter(analysis, metrics, events)
 		var buf strings.Builder
 		reporter.GenerateTextReport(&buf)
 
@@ -319,12 +319,12 @@ func BenchmarkMemoryUsage(b *testing.B) {
 }
 
 // Helper function to generate test metrics
-func generateTestMetrics(count int) []*analyzer.GCMetrics {
-	metrics := make([]*analyzer.GCMetrics, count)
+func generateTestMetrics(count int) []*gcanalyzer.GCMetrics {
+	metrics := make([]*gcanalyzer.GCMetrics, count)
 	now := time.Now()
 
 	for i := 0; i < count; i++ {
-		metrics[i] = &analyzer.GCMetrics{
+		metrics[i] = &gcanalyzer.GCMetrics{
 			NumGC:         uint32(i * 10),
 			PauseTotalNs:  uint64(i * 100000),
 			HeapAlloc:     uint64(1024*1024 + i*1024), // Growing heap
@@ -352,15 +352,15 @@ func generateTestMetrics(count int) []*analyzer.GCMetrics {
 }
 
 // Helper function to generate test events
-func generateTestEvents(count int) []*analyzer.GCEvent {
-	events := make([]*analyzer.GCEvent, count)
+func generateTestEvents(count int) []*gcanalyzer.GCEvent {
+	events := make([]*gcanalyzer.GCEvent, count)
 	now := time.Now()
 
 	for i := 0; i < count; i++ {
 		duration := time.Duration(100000+i*10000) * time.Nanosecond // Varying pause times
 		startTime := now.Add(time.Duration(i) * time.Second)
 
-		events[i] = &analyzer.GCEvent{
+		events[i] = &gcanalyzer.GCEvent{
 			Sequence:      uint32(i + 1),
 			StartTime:     startTime,
 			EndTime:       startTime.Add(duration),

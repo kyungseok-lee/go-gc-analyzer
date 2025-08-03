@@ -1,4 +1,4 @@
-package analyzer
+package types
 
 import (
 	"fmt"
@@ -90,6 +90,23 @@ type GCEvent struct {
 	HeapAfter     uint64        `json:"heap_after"`
 	HeapReleased  uint64        `json:"heap_released"`
 	TriggerReason string        `json:"trigger_reason"`
+}
+
+// MemoryPoint represents a point in memory usage trend
+type MemoryPoint struct {
+	Timestamp time.Time `json:"timestamp"`
+	HeapAlloc uint64    `json:"heap_alloc"`
+	HeapSys   uint64    `json:"heap_sys"`
+	HeapInuse uint64    `json:"heap_inuse"`
+}
+
+// HealthCheckStatus represents the health status based on GC analysis
+type HealthCheckStatus struct {
+	Status      string    `json:"status"` // healthy, warning, critical
+	Score       int       `json:"score"`  // 0-100
+	Issues      []string  `json:"issues"`
+	Summary     string    `json:"summary"`
+	LastUpdated time.Time `json:"last_updated"`
 }
 
 // NewGCMetrics creates a new GCMetrics from runtime.MemStats

@@ -1,4 +1,4 @@
-package analyzer
+package types
 
 import "errors"
 
