@@ -46,7 +46,7 @@ func TestIntegration_FullAnalysisFlow(t *testing.T) {
 		t.Error("Average heap size should not be zero")
 	}
 
-		// Test text report generation
+	// Test text report generation
 	var textReport strings.Builder
 	err = gcanalyzer.GenerateTextReport(analysis, metrics, nil, &textReport)
 	if err != nil {
@@ -74,18 +74,18 @@ func TestIntegration_FullAnalysisFlow(t *testing.T) {
 		t.Error("JSON report should contain analysis data")
 	}
 
-		// Test summary report
+	// Test summary report
 	var summaryReport strings.Builder
 	err = gcanalyzer.GenerateSummaryReport(analysis, &summaryReport)
 	if err != nil {
 		t.Errorf("Failed to generate summary report: %v", err)
 	}
-	
+
 	summaryContent := summaryReport.String()
 	if !strings.Contains(summaryContent, "GC Summary Report") {
 		t.Error("Summary report should contain title")
 	}
-	
+
 	// Test health check
 	healthCheck := gcanalyzer.GenerateHealthCheck(analysis)
 	if healthCheck == nil {
@@ -106,7 +106,7 @@ func TestIntegration_CollectorWithAnalysis(t *testing.T) {
 	var collectedMetrics []*gcanalyzer.GCMetrics
 	var events []*gcanalyzer.GCEvent
 
-		config := &gcanalyzer.MonitorConfig{
+	config := &gcanalyzer.MonitorConfig{
 		Interval:   100 * time.Millisecond,
 		MaxSamples: 50,
 		OnMetric: func(m *gcanalyzer.GCMetrics) {
@@ -116,7 +116,7 @@ func TestIntegration_CollectorWithAnalysis(t *testing.T) {
 			events = append(events, e)
 		},
 	}
-	
+
 	monitor := gcanalyzer.NewMonitor(config)
 
 	// Start collection
@@ -136,10 +136,10 @@ func TestIntegration_CollectorWithAnalysis(t *testing.T) {
 		}
 	}()
 
-		// Wait for collection period
+	// Wait for collection period
 	<-ctx.Done()
 	monitor.Stop()
-	
+
 	// Verify we collected metrics
 	finalMetrics := monitor.GetMetrics()
 	if len(finalMetrics) == 0 {
@@ -152,12 +152,12 @@ func TestIntegration_CollectorWithAnalysis(t *testing.T) {
 	}
 
 	// Analyze collected data
-		if len(finalMetrics) >= 2 {
+	if len(finalMetrics) >= 2 {
 		analysis, err := gcanalyzer.AnalyzeWithEvents(finalMetrics, monitor.GetEvents())
 		if err != nil {
 			t.Errorf("Failed to analyze collected metrics: %v", err)
 		}
-		
+
 		if analysis.Period <= 0 {
 			t.Error("Analysis period should be positive")
 		}
@@ -192,7 +192,7 @@ func TestIntegration_MemoryTrendAnalysis(t *testing.T) {
 		t.Fatal("Need at least 2 metrics for trend analysis")
 	}
 
-		// Test memory trend analysis
+	// Test memory trend analysis
 	memoryTrend := gcanalyzer.GetMemoryTrend(metrics)
 	if len(memoryTrend) != len(metrics) {
 		t.Errorf("Memory trend should have same length as metrics, got %d vs %d",
@@ -270,7 +270,7 @@ func TestIntegration_ReporterFormats(t *testing.T) {
 		t.Fatal("Need at least 2 metrics for analysis")
 	}
 
-		// Analyze
+	// Analyze
 	analysis, err := gcanalyzer.Analyze(metrics)
 	if err != nil {
 		t.Fatalf("Failed to analyze: %v", err)
