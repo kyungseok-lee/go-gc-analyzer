@@ -3,6 +3,7 @@ package collector
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/kyungseok-lee/go-gc-analyzer/pkg/types"
@@ -11,7 +12,7 @@ import (
 // Collector is responsible for collecting GC metrics over time
 type Collector struct {
 	mu         sync.RWMutex
-	isRunning  bool
+	running    atomic.Bool
 	metrics    []*types.GCMetrics
 	events     []*types.GCEvent
 	interval   time.Duration
@@ -42,19 +43,21 @@ func New(config *Config) *Collector {
 		config = &Config{}
 	}
 
-	if config.Interval == 0 {
-		config.Interval = time.Second
+	interval := config.Interval
+	if interval == 0 {
+		interval = types.DefaultCollectionInterval
 	}
 
-	if config.MaxSamples == 0 {
-		config.MaxSamples = 1000
+	maxSamples := config.MaxSamples
+	if maxSamples == 0 {
+		maxSamples = types.DefaultMaxSamples
 	}
 
 	return &Collector{
-		interval:          config.Interval,
-		maxSamples:        config.MaxSamples,
-		metrics:           make([]*types.GCMetrics, 0, config.MaxSamples),
-		events:            make([]*types.GCEvent, 0, config.MaxSamples),
+		interval:          interval,
+		maxSamples:        maxSamples,
+		metrics:           make([]*types.GCMetrics, 0, maxSamples),
+		events:            make([]*types.GCEvent, 0, maxSamples),
 		stopCh:            make(chan struct{}),
 		onMetricCollected: config.OnMetricCollected,
 		onGCEvent:         config.OnGCEvent,
@@ -63,14 +66,14 @@ func New(config *Config) *Collector {
 
 // Start begins collecting GC metrics
 func (c *Collector) Start(ctx context.Context) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.isRunning {
+	if !c.running.CompareAndSwap(false, true) {
 		return types.ErrCollectorAlreadyRunning
 	}
 
-	c.isRunning = true
+	// Reset stop channel for potential restart
+	c.mu.Lock()
+	c.stopCh = make(chan struct{})
+	c.mu.Unlock()
 
 	go c.collectLoop(ctx)
 
@@ -79,28 +82,28 @@ func (c *Collector) Start(ctx context.Context) error {
 
 // Stop stops collecting GC metrics
 func (c *Collector) Stop() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if !c.isRunning {
+	if !c.running.CompareAndSwap(true, false) {
 		return
 	}
 
-	c.isRunning = false
+	c.mu.Lock()
 	close(c.stopCh)
+	c.mu.Unlock()
 }
 
 // IsRunning returns whether the collector is currently running
 func (c *Collector) IsRunning() bool {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.isRunning
+	return c.running.Load()
 }
 
 // GetMetrics returns a copy of all collected metrics
 func (c *Collector) GetMetrics() []*types.GCMetrics {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+
+	if len(c.metrics) == 0 {
+		return nil
+	}
 
 	result := make([]*types.GCMetrics, len(c.metrics))
 	copy(result, c.metrics)
@@ -111,6 +114,10 @@ func (c *Collector) GetMetrics() []*types.GCMetrics {
 func (c *Collector) GetEvents() []*types.GCEvent {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+
+	if len(c.events) == 0 {
+		return nil
+	}
 
 	result := make([]*types.GCEvent, len(c.events))
 	copy(result, c.events)
@@ -126,18 +133,27 @@ func (c *Collector) GetLatestMetrics() *types.GCMetrics {
 		return nil
 	}
 
-	// Return a copy to prevent race conditions
+	// Return a deep copy to prevent race conditions
 	latest := c.metrics[len(c.metrics)-1]
-	metricsCopy := *latest
+	return copyMetrics(latest)
+}
+
+// copyMetrics creates a deep copy of GCMetrics
+func copyMetrics(src *types.GCMetrics) *types.GCMetrics {
+	dst := *src
 
 	// Deep copy slices
-	metricsCopy.PauseNs = make([]uint64, len(latest.PauseNs))
-	copy(metricsCopy.PauseNs, latest.PauseNs)
+	if len(src.PauseNs) > 0 {
+		dst.PauseNs = make([]uint64, len(src.PauseNs))
+		copy(dst.PauseNs, src.PauseNs)
+	}
 
-	metricsCopy.PauseEnd = make([]uint64, len(latest.PauseEnd))
-	copy(metricsCopy.PauseEnd, latest.PauseEnd)
+	if len(src.PauseEnd) > 0 {
+		dst.PauseEnd = make([]uint64, len(src.PauseEnd))
+		copy(dst.PauseEnd, src.PauseEnd)
+	}
 
-	return &metricsCopy
+	return &dst
 }
 
 // Clear removes all collected metrics and events
@@ -159,6 +175,7 @@ func (c *Collector) collectLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			c.running.Store(false)
 			return
 		case <-c.stopCh:
 			return
@@ -186,22 +203,27 @@ func (c *Collector) addMetrics(metrics *types.GCMetrics) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Add to metrics slice
 	c.metrics = append(c.metrics, metrics)
 
-	// Keep only the last maxSamples samples
+	// Keep only the last maxSamples samples using efficient trimming
 	if len(c.metrics) > c.maxSamples {
-		c.metrics = c.metrics[len(c.metrics)-c.maxSamples:]
+		excess := len(c.metrics) - c.maxSamples
+		// Zero out removed elements to allow GC
+		for i := 0; i < excess; i++ {
+			c.metrics[i] = nil
+		}
+		c.metrics = c.metrics[excess:]
 	}
 }
 
 // detectGCEvents detects and records GC events
 func (c *Collector) detectGCEvents(lastGCCount uint32, current *types.GCMetrics) {
 	newGCCount := current.NumGC - lastGCCount
+	pauseLen := uint32(len(current.PauseNs))
 
 	for i := uint32(0); i < newGCCount; i++ {
-		// Get pause time for this GC
-		pauseIndex := (current.NumGC - newGCCount + i) % uint32(len(current.PauseNs))
+		// Get pause time for this GC with wraparound handling
+		pauseIndex := (current.NumGC - newGCCount + i) % pauseLen
 		pauseNs := current.PauseNs[pauseIndex]
 
 		// Get pause end time
@@ -214,7 +236,7 @@ func (c *Collector) detectGCEvents(lastGCCount uint32, current *types.GCMetrics)
 			StartTime:     startTime,
 			EndTime:       endTime,
 			Duration:      time.Duration(pauseNs),
-			TriggerReason: c.guessTriggerReason(current),
+			TriggerReason: guessTriggerReason(current),
 		}
 
 		c.addEvent(event)
@@ -235,12 +257,17 @@ func (c *Collector) addEvent(event *types.GCEvent) {
 
 	// Keep only the last maxSamples events
 	if len(c.events) > c.maxSamples {
-		c.events = c.events[len(c.events)-c.maxSamples:]
+		excess := len(c.events) - c.maxSamples
+		// Zero out removed elements to allow GC
+		for i := 0; i < excess; i++ {
+			c.events[i] = nil
+		}
+		c.events = c.events[excess:]
 	}
 }
 
 // guessTriggerReason attempts to guess the GC trigger reason
-func (c *Collector) guessTriggerReason(metrics *types.GCMetrics) string {
+func guessTriggerReason(metrics *types.GCMetrics) string {
 	// This is a heuristic-based approach
 	// In practice, Go doesn't expose the actual trigger reason
 
@@ -270,12 +297,13 @@ func CollectOnce() *types.GCMetrics {
 // CollectForDuration collects GC metrics for a specific duration
 func CollectForDuration(ctx context.Context, duration time.Duration, interval time.Duration) ([]*types.GCMetrics, error) {
 	if interval == 0 {
-		interval = time.Second
+		interval = types.DefaultCollectionInterval
 	}
 
+	estimatedSamples := int(duration/interval) + 10 // Add buffer
 	collector := New(&Config{
 		Interval:   interval,
-		MaxSamples: int(duration/interval) + 100, // Add some buffer
+		MaxSamples: estimatedSamples,
 	})
 
 	if err := collector.Start(ctx); err != nil {

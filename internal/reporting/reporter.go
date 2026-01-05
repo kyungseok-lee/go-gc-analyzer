@@ -10,35 +10,6 @@ import (
 	"github.com/kyungseok-lee/go-gc-analyzer/pkg/types"
 )
 
-// Health check threshold constants
-const (
-	// GC frequency thresholds
-	HealthCheckGCFrequencyThreshold = 10.0 // GCs per second
-
-	// Pause time thresholds
-	HealthCheckAvgPauseThreshold = 100 * time.Millisecond
-	HealthCheckP99PauseThreshold = 500 * time.Millisecond
-
-	// Efficiency thresholds
-	HealthCheckGCOverheadThreshold      = 25.0 // percentage
-	HealthCheckMemoryEfficiencyThreshold = 50.0 // percentage
-
-	// Allocation rate threshold
-	HealthCheckAllocationRateThreshold = 100 * 1024 * 1024 // 100 MB/s
-
-	// Health score thresholds
-	HealthScoreHealthy  = 80
-	HealthScoreWarning  = 60
-
-	// Health check penalties
-	PenaltyGCFrequency       = 15
-	PenaltyAvgPause          = 20
-	PenaltyP99Pause          = 10
-	PenaltyGCOverhead        = 25
-	PenaltyMemoryEfficiency  = 15
-	PenaltyAllocationRate    = 10
-)
-
 // Reporter provides various reporting formats for GC analysis
 type Reporter struct {
 	analysis *types.GCAnalysis
@@ -84,14 +55,14 @@ func (r *Reporter) GenerateTextReport(w io.Writer) error {
 
 	// Memory Usage
 	fmt.Fprintf(w, "=== Memory Usage ===\n")
-	fmt.Fprintf(w, "Average Heap Size: %s\n", formatBytes(r.analysis.AvgHeapSize))
-	fmt.Fprintf(w, "Min Heap Size: %s\n", formatBytes(r.analysis.MinHeapSize))
-	fmt.Fprintf(w, "Max Heap Size: %s\n", formatBytes(r.analysis.MaxHeapSize))
-	fmt.Fprintf(w, "Heap Growth Rate: %s/second\n\n", formatBytes(uint64(r.analysis.HeapGrowthRate)))
+	fmt.Fprintf(w, "Average Heap Size: %s\n", types.FormatBytes(r.analysis.AvgHeapSize))
+	fmt.Fprintf(w, "Min Heap Size: %s\n", types.FormatBytes(r.analysis.MinHeapSize))
+	fmt.Fprintf(w, "Max Heap Size: %s\n", types.FormatBytes(r.analysis.MaxHeapSize))
+	fmt.Fprintf(w, "Heap Growth Rate: %s\n\n", types.FormatBytesRate(r.analysis.HeapGrowthRate))
 
 	// Allocation Stats
 	fmt.Fprintf(w, "=== Allocation Statistics ===\n")
-	fmt.Fprintf(w, "Allocation Rate: %s/second\n", formatBytes(uint64(r.analysis.AllocRate)))
+	fmt.Fprintf(w, "Allocation Rate: %s\n", types.FormatBytesRate(r.analysis.AllocRate))
 	fmt.Fprintf(w, "Total Allocations: %d\n", r.analysis.AllocCount)
 	fmt.Fprintf(w, "Total Frees: %d\n\n", r.analysis.FreeCount)
 
@@ -115,9 +86,9 @@ func (r *Reporter) GenerateTextReport(w io.Writer) error {
 // GenerateJSONReport generates a JSON report
 func (r *Reporter) GenerateJSONReport(w io.Writer, indent bool) error {
 	report := struct {
-		Analysis *types.GCAnalysis  `json:"analysis"`
-		Metrics  []*types.GCMetrics `json:"metrics,omitempty"`
-		Events   []*types.GCEvent   `json:"events,omitempty"`
+		Analysis *types.GCAnalysis   `json:"analysis"`
+		Metrics  []*types.GCMetrics  `json:"metrics,omitempty"`
+		Events   []*types.GCEvent    `json:"events,omitempty"`
 	}{
 		Analysis: r.analysis,
 		Metrics:  r.metrics,
@@ -154,7 +125,7 @@ func (r *Reporter) GenerateTableReport(w io.Writer) error {
 			if duration > 0 {
 				allocDiff := metrics.TotalAlloc - prev.TotalAlloc
 				rate := float64(allocDiff) / duration.Seconds()
-				allocRate = formatBytes(uint64(rate)) + "/s"
+				allocRate = types.FormatBytesRate(rate)
 			}
 		}
 
@@ -166,8 +137,8 @@ func (r *Reporter) GenerateTableReport(w io.Writer) error {
 		fmt.Fprintf(tw, "%s\t%d\t%s\t%s\t%v\t%d\t%s\n",
 			metrics.Timestamp.Format("15:04:05"),
 			metrics.NumGC,
-			formatBytes(metrics.HeapAlloc),
-			formatBytes(metrics.Sys),
+			types.FormatBytes(metrics.HeapAlloc),
+			types.FormatBytes(metrics.Sys),
 			avgPause.Round(time.Microsecond),
 			metrics.HeapObjects,
 			allocRate,
@@ -191,10 +162,10 @@ func (r *Reporter) GenerateSummaryReport(w io.Writer) error {
 		r.analysis.GCFrequency,
 		r.analysis.AvgPauseTime.Round(time.Microsecond))
 
-	fmt.Fprintf(w, "Memory: %s avg, %s max | Alloc Rate: %s/s\n",
-		formatBytes(r.analysis.AvgHeapSize),
-		formatBytes(r.analysis.MaxHeapSize),
-		formatBytes(uint64(r.analysis.AllocRate)))
+	fmt.Fprintf(w, "Memory: %s avg, %s max | Alloc Rate: %s\n",
+		types.FormatBytes(r.analysis.AvgHeapSize),
+		types.FormatBytes(r.analysis.MaxHeapSize),
+		types.FormatBytesRate(r.analysis.AllocRate))
 
 	fmt.Fprintf(w, "Efficiency: %.1f%% GC overhead, %.1f%% memory efficiency\n\n",
 		r.analysis.GCOverhead,
@@ -228,9 +199,9 @@ func (r *Reporter) GenerateEventsReport(w io.Writer) error {
 			event.StartTime.Format("15:04:05.000"),
 			event.Duration.Round(time.Microsecond),
 			event.TriggerReason,
-			formatBytes(event.HeapBefore),
-			formatBytes(event.HeapAfter),
-			formatBytes(event.HeapReleased),
+			types.FormatBytes(event.HeapBefore),
+			types.FormatBytes(event.HeapAfter),
+			types.FormatBytes(event.HeapReleased),
 		)
 	}
 
@@ -287,50 +258,55 @@ func (r *Reporter) GenerateHealthCheck() *types.HealthCheckStatus {
 	status := &types.HealthCheckStatus{
 		Status:      "healthy",
 		Score:       100,
-		Issues:      make([]string, 0),
+		Issues:      make([]string, 0, 6), // Pre-allocate with estimated capacity
 		LastUpdated: time.Now(),
 	}
 
 	// Check GC frequency
-	if r.analysis.GCFrequency > HealthCheckGCFrequencyThreshold {
-		status.Score -= PenaltyGCFrequency
+	if r.analysis.GCFrequency > types.ThresholdGCFrequencyHigh {
+		status.Score -= types.PenaltyGCFrequency
 		status.Issues = append(status.Issues, "High GC frequency")
 	}
 
 	// Check pause times
-	if r.analysis.AvgPauseTime > HealthCheckAvgPauseThreshold {
-		status.Score -= PenaltyAvgPause
+	if r.analysis.AvgPauseTime > types.ThresholdAvgPauseLong {
+		status.Score -= types.PenaltyAvgPause
 		status.Issues = append(status.Issues, "Long average pause times")
 	}
-	if r.analysis.P99PauseTime > HealthCheckP99PauseThreshold {
-		status.Score -= PenaltyP99Pause
+	if r.analysis.P99PauseTime > types.ThresholdP99PauseVeryLong {
+		status.Score -= types.PenaltyP99Pause
 		status.Issues = append(status.Issues, "Very long P99 pause times")
 	}
 
 	// Check GC overhead
-	if r.analysis.GCOverhead > HealthCheckGCOverheadThreshold {
-		status.Score -= PenaltyGCOverhead
+	if r.analysis.GCOverhead > types.ThresholdGCOverheadHigh {
+		status.Score -= types.PenaltyGCOverhead
 		status.Issues = append(status.Issues, "High GC overhead")
 	}
 
 	// Check memory efficiency
-	if r.analysis.MemoryEfficiency < HealthCheckMemoryEfficiencyThreshold {
-		status.Score -= PenaltyMemoryEfficiency
+	if r.analysis.MemoryEfficiency > 0 && r.analysis.MemoryEfficiency < types.ThresholdMemoryEfficiencyLow {
+		status.Score -= types.PenaltyMemoryEfficiency
 		status.Issues = append(status.Issues, "Low memory efficiency")
 	}
 
 	// Check allocation rate
-	if r.analysis.AllocRate > HealthCheckAllocationRateThreshold {
-		status.Score -= PenaltyAllocationRate
+	if r.analysis.AllocRate > types.ThresholdAllocationRateHigh {
+		status.Score -= types.PenaltyAllocationRate
 		status.Issues = append(status.Issues, "High allocation rate")
+	}
+
+	// Ensure score doesn't go below 0
+	if status.Score < 0 {
+		status.Score = 0
 	}
 
 	// Determine status based on score
 	switch {
-	case status.Score >= HealthScoreHealthy:
+	case status.Score >= types.HealthScoreHealthy:
 		status.Status = "healthy"
 		status.Summary = "GC performance is good"
-	case status.Score >= HealthScoreWarning:
+	case status.Score >= types.HealthScoreWarning:
 		status.Status = "warning"
 		status.Summary = "GC performance needs attention"
 	default:
@@ -339,18 +315,4 @@ func (r *Reporter) GenerateHealthCheck() *types.HealthCheckStatus {
 	}
 
 	return status
-}
-
-// formatBytes formats bytes into human-readable format
-func formatBytes(bytes uint64) string {
-	const unit = 1024
-	if bytes < unit {
-		return fmt.Sprintf("%d B", bytes)
-	}
-	div, exp := int64(unit), 0
-	for n := bytes / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }

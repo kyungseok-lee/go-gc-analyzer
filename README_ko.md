@@ -3,6 +3,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/kyungseok-lee/go-gc-analyzer)](https://goreportcard.com/report/github.com/kyungseok-lee/go-gc-analyzer)
 [![GoDoc](https://godoc.org/github.com/kyungseok-lee/go-gc-analyzer?status.svg)](https://godoc.org/github.com/kyungseok-lee/go-gc-analyzer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Go Version](https://img.shields.io/badge/Go-1.25+-blue.svg)](https://golang.org/dl/)
 
 Go 애플리케이션의 가비지 컬렉션(GC) 성능을 분석하고 모니터링하는 포괄적인 Go 라이브러리입니다. 이 라이브러리는 GC 동작, 메모리 사용 패턴, 성능 메트릭에 대한 상세한 인사이트를 제공하여 Go 애플리케이션 최적화를 돕습니다.
 
@@ -18,12 +19,15 @@ Go 애플리케이션의 가비지 컬렉션(GC) 성능을 분석하고 모니�
 - **간단한 API**: 단일 import 경로(`pkg/gcanalyzer`)를 가진 깔끔하고 직관적인 API
 - **모듈러 아키텍처**: 관심사 분리가 명확한 잘 구조화된 내부 패키지
 - **의존성 없음**: 외부 의존성이 없는 순수 Go 구현
+- **고성능**: 최소한의 할당과 효율적인 데이터 구조로 최적화
 
 ## 📦 설치
 
 ```bash
 go get github.com/kyungseok-lee/go-gc-analyzer
 ```
+
+**요구사항**: Go 1.25 이상
 
 ## 🏃‍♂️ 빠른 시작
 
@@ -35,9 +39,11 @@ package main
 import (
     "context"
     "fmt"
+    "os"
     "time"
     
     "github.com/kyungseok-lee/go-gc-analyzer/pkg/gcanalyzer"
+    "github.com/kyungseok-lee/go-gc-analyzer/pkg/types"
 )
 
 func main() {
@@ -57,7 +63,8 @@ func main() {
     // 분석 결과 출력
     fmt.Printf("GC 빈도: %.2f GCs/초\n", analysis.GCFrequency)
     fmt.Printf("평균 일시 정지 시간: %v\n", analysis.AvgPauseTime)
-    fmt.Printf("평균 힙 크기: %s\n", formatBytes(analysis.AvgHeapSize))
+    fmt.Printf("평균 힙 크기: %s\n", types.FormatBytes(analysis.AvgHeapSize))
+    fmt.Printf("할당 속도: %s\n", types.FormatBytesRate(analysis.AllocRate))
     fmt.Printf("GC 오버헤드: %.2f%%\n", analysis.GCOverhead)
     
     // 리포트 생성
@@ -72,6 +79,7 @@ package main
 
 import (
     "context"
+    "fmt"
     "log"
     "time"
     
@@ -122,20 +130,13 @@ func main() {
 
 ## 📊 모니터링 서버
 
-라이브러리에는 바로 사용 가능한 HTTP 모니터링 서버가 포함되어 있습니다:
+라이브러리에는 바로 사용 가능한 모니터링 예제가 포함되어 있습니다:
 
 ```bash
 go run examples/monitoring/main.go
 ```
 
-다음 엔드포인트를 제공하는 모니터링 서비스를 시작합니다:
-
-- `http://localhost:8080/metrics` - 현재 GC 메트릭 (JSON)
-- `http://localhost:8080/health` - 헬스 체크 상태
-- `http://localhost:8080/analysis` - 전체 GC 분석
-- `http://localhost:8080/prometheus` - Prometheus 형식 메트릭
-- `http://localhost:8080/trend` - 메모리 사용 트렌드
-- `http://localhost:8080/distribution` - 일시 정지 시간 분포
+실시간 알림과 주기적 분석 기능을 갖춘 모니터링 서비스를 시작합니다.
 
 ## 📖 API 문서
 
@@ -191,65 +192,77 @@ func CollectForDuration(ctx context.Context, duration, interval time.Duration) (
 #### 분석 함수
 
 ```go
-// 메트릭으로부터 분석기 생성
-func NewAnalyzer(metrics []*GCMetrics) *Analyzer
+// 메트릭 분석 수행
+func Analyze(metrics []*GCMetrics) (*GCAnalysis, error)
 
-// 분석 수행
-func (a *Analyzer) Analyze() (*GCAnalysis, error)
+// 메트릭과 이벤트로 분석 수행
+func AnalyzeWithEvents(metrics []*GCMetrics, events []*GCEvent) (*GCAnalysis, error)
 
 // 메모리 트렌드 데이터 가져오기
-func (a *Analyzer) GetMemoryTrend() []MemoryPoint
+func GetMemoryTrend(metrics []*GCMetrics) []MemoryPoint
 
 // 일시 정지 시간 분포 가져오기
-func (a *Analyzer) GetPauseTimeDistribution() map[string]int
+func GetPauseTimeDistribution(events []*GCEvent) map[string]int
 ```
 
 #### 리포팅 함수
 
 ```go
-// 리포터 생성
-func NewReporter(analysis *GCAnalysis, metrics []*GCMetrics, events []*GCEvent) *Reporter
-
 // 다양한 리포트 형식 생성
-func (r *Reporter) GenerateTextReport(w io.Writer) error
-func (r *Reporter) GenerateJSONReport(w io.Writer, indent bool) error
-func (r *Reporter) GenerateTableReport(w io.Writer) error
-func (r *Reporter) GenerateSummaryReport(w io.Writer) error
-func (r *Reporter) GenerateGrafanaMetrics(w io.Writer) error
+func GenerateTextReport(analysis *GCAnalysis, metrics []*GCMetrics, events []*GCEvent, w io.Writer) error
+func GenerateJSONReport(analysis *GCAnalysis, metrics []*GCMetrics, events []*GCEvent, w io.Writer, indent bool) error
+func GenerateSummaryReport(analysis *GCAnalysis, w io.Writer) error
 
 // 헬스 체크 생성
-func (r *Reporter) GenerateHealthCheck() *HealthCheckStatus
+func GenerateHealthCheck(analysis *GCAnalysis) *HealthCheckStatus
+```
+
+#### 유틸리티 함수 (types 패키지)
+
+```go
+// 바이트를 사람이 읽기 쉬운 형식으로 변환 (KB, MB, GB 등)
+func FormatBytes(bytes uint64) string
+
+// 초당 바이트를 사람이 읽기 쉬운 형식으로 변환
+func FormatBytesRate(bytesPerSecond float64) string
 ```
 
 ## 🔧 설정
 
-### 컬렉터 설정
+### 모니터 설정
 
 ```go
-type CollectorConfig struct {
+type MonitorConfig struct {
     // 수집 간격 (기본값: 1초)
     Interval time.Duration
     
     // 메모리에 보관할 최대 샘플 수 (기본값: 1000)
     MaxSamples int
     
-    // 각 메트릭 수집 시 콜백
-    OnMetricCollected func(*GCMetrics)
+    // 알림 콜백 함수
+    OnAlert func(*Alert)
     
-    // 각 GC 이벤트 시 콜백
+    // 메트릭 수집 콜백
+    OnMetric func(*GCMetrics)
+    
+    // GC 이벤트 콜백
     OnGCEvent func(*GCEvent)
 }
 ```
 
-### 알림 임계값
+### 임계값 상수 (types 패키지)
+
+분석 및 헬스 체크를 위한 설정 가능한 임계값 상수:
 
 ```go
-type AlertThresholds struct {
-    MaxGCFrequency   float64       // 초당 최대 GC 횟수
-    MaxPauseTime     time.Duration // 최대 일시 정지 시간
-    MaxGCOverhead    float64       // 최대 GC CPU 비율
-    MinHealthScore   int           // 최소 헬스 점수
-}
+const (
+    ThresholdGCFrequencyHigh     = 10.0                  // 초당 GC 횟수
+    ThresholdAvgPauseLong        = 100 * time.Millisecond
+    ThresholdP99PauseVeryLong    = 500 * time.Millisecond
+    ThresholdGCOverheadHigh      = 25.0                  // 퍼센트
+    ThresholdMemoryEfficiencyLow = 50.0                  // 퍼센트
+    ThresholdAllocationRateHigh  = 100 * 1024 * 1024     // 100 MB/s
+)
 ```
 
 ## 📈 메트릭 이해하기
@@ -310,7 +323,7 @@ type AlertThresholds struct {
 
 - **[기본 사용법](examples/basic/main.go)**: 간단한 수집과 분석
 - **[고급 기능](examples/advanced/main.go)**: 워크로드 분석, 성능 비교
-- **[모니터링 서비스](examples/monitoring/main.go)**: 알림이 있는 HTTP 모니터링 서버
+- **[모니터링 서비스](examples/monitoring/main.go)**: 알림이 있는 지속적 모니터링
 
 예시 실행:
 
@@ -349,18 +362,21 @@ go tool cover -html=coverage.out
 
 ## 📊 벤치마크
 
-라이브러리는 최소한의 오버헤드를 위해 설계되었습니다:
+라이브러리는 최소한의 오버헤드를 위해 설계되었습니다 (Apple M1 Pro):
 
 ```
-BenchmarkCollectOnce-8                    100000    10235 ns/op    2048 B/op     12 allocs/op
-BenchmarkAnalyzer_Analyze-8                5000      234567 ns/op   45678 B/op   123 allocs/op
-BenchmarkReporter_GenerateTextReport-8    10000     102345 ns/op   12345 B/op    45 allocs/op
+BenchmarkCollectOnce-10                    50479     23013 ns/op    4336 B/op     3 allocs/op
+BenchmarkAnalyzer_Analyze-10             2036685       590 ns/op     808 B/op     5 allocs/op
+BenchmarkAnalyzer_GetMemoryTrend-10      1556238       843 ns/op    4864 B/op     1 allocs/op
+BenchmarkReporter_GenerateTextReport-10   353306      3409 ns/op    2025 B/op    46 allocs/op
+BenchmarkReporter_GenerateHealthCheck-10 12463647       98 ns/op     192 B/op     2 allocs/op
 ```
 
 성능 특성:
-- **CollectOnce**: 수집당 약 10μs
+- **CollectOnce**: 수집당 약 23μs
 - **분석**: 데이터 포인트와 선형적으로 확장
 - **리포팅**: 모든 형식의 빠른 생성
+- **헬스 체크**: 마이크로초 미만 생성
 - **메모리 오버헤드**: 최소한, 설정 가능한 보관 기간
 
 ## 🔌 통합
@@ -370,7 +386,7 @@ BenchmarkReporter_GenerateTextReport-8    10000     102345 ns/op   12345 B/op   
 Prometheus 형식으로 메트릭 내보내기:
 
 ```go
-reporter := gcanalyzer.NewReporter(analysis, metrics, nil)
+reporter := reporting.New(analysis, metrics, nil)
 err := reporter.GenerateGrafanaMetrics(w)
 ```
 
@@ -379,7 +395,7 @@ err := reporter.GenerateGrafanaMetrics(w)
 모든 데이터 구조는 쉬운 통합을 위해 JSON 직렬화 가능:
 
 ```go
-analysis, _ := gcAnalyzer.Analyze()
+analysis, _ := gcanalyzer.Analyze(metrics)
 data, _ := json.Marshal(analysis)
 ```
 
@@ -388,7 +404,7 @@ data, _ := json.Marshal(analysis)
 헬스 체크 시스템과 통합:
 
 ```go
-healthCheck := reporter.GenerateHealthCheck()
+healthCheck := gcanalyzer.GenerateHealthCheck(analysis)
 if healthCheck.Status != "healthy" {
     // 알림 또는 조치 취하기
 }

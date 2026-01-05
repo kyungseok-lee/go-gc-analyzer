@@ -3,6 +3,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/kyungseok-lee/go-gc-analyzer)](https://goreportcard.com/report/github.com/kyungseok-lee/go-gc-analyzer)
 [![GoDoc](https://godoc.org/github.com/kyungseok-lee/go-gc-analyzer?status.svg)](https://godoc.org/github.com/kyungseok-lee/go-gc-analyzer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Go Version](https://img.shields.io/badge/Go-1.25+-blue.svg)](https://golang.org/dl/)
 
 A comprehensive Go library for analyzing and monitoring garbage collection (GC) performance in Go applications. This library provides detailed insights into GC behavior, memory usage patterns, and performance metrics to help optimize your Go applications.
 
@@ -18,12 +19,15 @@ A comprehensive Go library for analyzing and monitoring garbage collection (GC) 
 - **Simple API**: Clean and intuitive API with single import path (`pkg/gcanalyzer`)
 - **Modular Architecture**: Well-structured internal packages with clean separation of concerns
 - **Zero Dependencies**: Pure Go implementation with no external dependencies
+- **High Performance**: Optimized with minimal allocations and efficient data structures
 
 ## 📦 Installation
 
 ```bash
 go get github.com/kyungseok-lee/go-gc-analyzer
 ```
+
+**Requirements**: Go 1.25 or later
 
 ## 🏃‍♂️ Quick Start
 
@@ -35,10 +39,11 @@ package main
 import (
     "context"
     "fmt"
-    "time"
     "os"
+    "time"
     
     "github.com/kyungseok-lee/go-gc-analyzer/pkg/gcanalyzer"
+    "github.com/kyungseok-lee/go-gc-analyzer/pkg/types"
 )
 
 func main() {
@@ -58,7 +63,8 @@ func main() {
     // Print analysis results
     fmt.Printf("GC Frequency: %.2f GCs/second\n", analysis.GCFrequency)
     fmt.Printf("Average Pause Time: %v\n", analysis.AvgPauseTime)
-    fmt.Printf("Average Heap Size: %s\n", formatBytes(analysis.AvgHeapSize))
+    fmt.Printf("Average Heap Size: %s\n", types.FormatBytes(analysis.AvgHeapSize))
+    fmt.Printf("Allocation Rate: %s\n", types.FormatBytesRate(analysis.AllocRate))
     fmt.Printf("GC Overhead: %.2f%%\n", analysis.GCOverhead)
     
     // Generate a report
@@ -73,6 +79,7 @@ package main
 
 import (
     "context"
+    "fmt"
     "log"
     "time"
     
@@ -123,20 +130,13 @@ func main() {
 
 ## 📊 Monitoring Server
 
-The library includes a ready-to-use HTTP monitoring server:
+The library includes a ready-to-use monitoring example:
 
 ```bash
 go run examples/monitoring/main.go
 ```
 
-This starts a monitoring service with the following endpoints:
-
-- `http://localhost:8080/metrics` - Current GC metrics (JSON)
-- `http://localhost:8080/health` - Health check status
-- `http://localhost:8080/analysis` - Full GC analysis
-- `http://localhost:8080/prometheus` - Prometheus format metrics
-- `http://localhost:8080/trend` - Memory usage trend
-- `http://localhost:8080/distribution` - Pause time distribution
+This starts a monitoring service with real-time alerting and periodic analysis.
 
 ## 📖 API Documentation
 
@@ -217,6 +217,16 @@ func GenerateSummaryReport(analysis *GCAnalysis, w io.Writer) error
 func GenerateHealthCheck(analysis *GCAnalysis) *HealthCheckStatus
 ```
 
+#### Utility Functions (types package)
+
+```go
+// Format bytes into human-readable format (KB, MB, GB, etc.)
+func FormatBytes(bytes uint64) string
+
+// Format bytes per second into human-readable format
+func FormatBytesRate(bytesPerSecond float64) string
+```
+
 ## 🔧 Configuration
 
 ### Monitor Configuration
@@ -240,15 +250,19 @@ type MonitorConfig struct {
 }
 ```
 
-### Alert Thresholds
+### Threshold Constants (types package)
+
+The library provides configurable threshold constants for analysis and health checks:
 
 ```go
-type AlertThresholds struct {
-    MaxGCFrequency   float64       // GCs per second
-    MaxPauseTime     time.Duration // Maximum pause time
-    MaxGCOverhead    float64       // Maximum GC CPU percentage
-    MinHealthScore   int           // Minimum health score
-}
+const (
+    ThresholdGCFrequencyHigh     = 10.0                  // GCs per second
+    ThresholdAvgPauseLong        = 100 * time.Millisecond
+    ThresholdP99PauseVeryLong    = 500 * time.Millisecond
+    ThresholdGCOverheadHigh      = 25.0                  // percentage
+    ThresholdMemoryEfficiencyLow = 50.0                  // percentage
+    ThresholdAllocationRateHigh  = 100 * 1024 * 1024     // 100 MB/s
+)
 ```
 
 ## 📈 Understanding the Metrics
@@ -309,7 +323,7 @@ The library includes comprehensive examples:
 
 - **[Basic Usage](examples/basic/main.go)**: Simple collection and analysis
 - **[Advanced Features](examples/advanced/main.go)**: Workload analysis, performance comparison
-- **[Monitoring Service](examples/monitoring/main.go)**: HTTP monitoring server with alerts
+- **[Monitoring Service](examples/monitoring/main.go)**: Continuous monitoring with alerts
 
 Run examples:
 
@@ -348,18 +362,21 @@ go tool cover -html=coverage.out
 
 ## 📊 Benchmarks
 
-The library is designed for minimal overhead:
+The library is designed for minimal overhead (Apple M1 Pro):
 
 ```
-BenchmarkCollectOnce-8                    100000    10235 ns/op    2048 B/op     12 allocs/op
-BenchmarkAnalyzer_Analyze-8                5000      234567 ns/op   45678 B/op   123 allocs/op
-BenchmarkReporter_GenerateTextReport-8    10000     102345 ns/op   12345 B/op    45 allocs/op
+BenchmarkCollectOnce-10                    50479     23013 ns/op    4336 B/op     3 allocs/op
+BenchmarkAnalyzer_Analyze-10             2036685       590 ns/op     808 B/op     5 allocs/op
+BenchmarkAnalyzer_GetMemoryTrend-10      1556238       843 ns/op    4864 B/op     1 allocs/op
+BenchmarkReporter_GenerateTextReport-10   353306      3409 ns/op    2025 B/op    46 allocs/op
+BenchmarkReporter_GenerateHealthCheck-10 12463647       98 ns/op     192 B/op     2 allocs/op
 ```
 
 Performance characteristics:
-- **CollectOnce**: ~10μs per collection
+- **CollectOnce**: ~23μs per collection
 - **Analysis**: Scales linearly with data points
 - **Reporting**: Fast generation of all formats
+- **Health Check**: Sub-microsecond generation
 - **Memory overhead**: Minimal, configurable retention
 
 ## 🔌 Integration
@@ -369,7 +386,7 @@ Performance characteristics:
 Export metrics in Prometheus format:
 
 ```go
-reporter := analyzer.NewReporter(analysis, metrics, nil)
+reporter := reporting.New(analysis, metrics, nil)
 err := reporter.GenerateGrafanaMetrics(w)
 ```
 
@@ -378,7 +395,7 @@ err := reporter.GenerateGrafanaMetrics(w)
 All data structures are JSON-serializable for easy integration:
 
 ```go
-analysis, _ := gcAnalyzer.Analyze()
+analysis, _ := gcanalyzer.Analyze(metrics)
 data, _ := json.Marshal(analysis)
 ```
 
@@ -387,7 +404,7 @@ data, _ := json.Marshal(analysis)
 Integrate with health check systems:
 
 ```go
-healthCheck := reporter.GenerateHealthCheck()
+healthCheck := gcanalyzer.GenerateHealthCheck(analysis)
 if healthCheck.Status != "healthy" {
     // Alert or take action
 }

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/kyungseok-lee/go-gc-analyzer/pkg/gcanalyzer"
+	"github.com/kyungseok-lee/go-gc-analyzer/pkg/types"
 )
 
 func main() {
@@ -45,14 +46,14 @@ func runContinuousMonitoring() {
 	var metrics []*gcanalyzer.GCMetrics
 	var events []*gcanalyzer.GCEvent
 
-		config := &gcanalyzer.MonitorConfig{
+	config := &gcanalyzer.MonitorConfig{
 		Interval:   200 * time.Millisecond,
 		MaxSamples: 100,
 		OnMetric: func(m *gcanalyzer.GCMetrics) {
 			mu.Lock()
 			defer mu.Unlock()
 			metrics = append(metrics, m)
-			
+
 			// Real-time alerting example
 			if m.GCCPUFraction > 0.1 { // More than 10% CPU in GC
 				fmt.Printf("   ⚠️  High GC CPU usage detected: %.2f%%\n", m.GCCPUFraction*100)
@@ -62,14 +63,14 @@ func runContinuousMonitoring() {
 			mu.Lock()
 			defer mu.Unlock()
 			events = append(events, e)
-			
+
 			// Alert on long pauses
 			if e.Duration > 10*time.Millisecond {
 				fmt.Printf("   ⚠️  Long GC pause detected: %v\n", e.Duration.Round(time.Microsecond))
 			}
 		},
 	}
-	
+
 	monitor := gcanalyzer.NewMonitor(config)
 
 	// Start monitoring
@@ -135,10 +136,10 @@ func analyzeWorkloadPatterns() {
 			continue
 		}
 
-		fmt.Printf("     GC Frequency: %.2f/s, Avg Pause: %v, Alloc Rate: %s/s\n",
+		fmt.Printf("     GC Frequency: %.2f/s, Avg Pause: %v, Alloc Rate: %s\n",
 			analysis.GCFrequency,
 			analysis.AvgPauseTime.Round(time.Microsecond),
-			formatBytes(uint64(analysis.AllocRate)))
+			types.FormatBytesRate(analysis.AllocRate))
 
 		// Print top recommendation
 		if len(analysis.Recommendations) > 0 {
@@ -177,9 +178,9 @@ func analyzeMemoryTrends() {
 		if i%3 == 0 { // Print every 3rd point to avoid clutter
 			fmt.Printf("     %s: Heap=%s, Sys=%s, InUse=%s\n",
 				point.Timestamp.Format("15:04:05.000"),
-				formatBytes(point.HeapAlloc),
-				formatBytes(point.HeapSys),
-				formatBytes(point.HeapInuse))
+				types.FormatBytes(point.HeapAlloc),
+				types.FormatBytes(point.HeapSys),
+				types.FormatBytes(point.HeapInuse))
 		}
 	}
 
@@ -191,7 +192,7 @@ func analyzeMemoryTrends() {
 		growth := int64(last.HeapAlloc) - int64(first.HeapAlloc)
 		growthRate := float64(growth) / duration.Seconds()
 
-		fmt.Printf("     Memory growth rate: %s/second\n", formatBytes(uint64(growthRate)))
+		fmt.Printf("     Memory growth rate: %s\n", types.FormatBytesRate(growthRate))
 	}
 }
 
@@ -216,7 +217,7 @@ func generateAdvancedReports() {
 		return
 	}
 
-		// 1. JSON Report
+	// 1. JSON Report
 	fmt.Println("   Generating JSON report...")
 	jsonFile, err := os.Create("gc_analysis.json")
 	if err != nil {
@@ -230,7 +231,7 @@ func generateAdvancedReports() {
 			fmt.Println("     ✅ JSON report saved to gc_analysis.json")
 		}
 	}
-	
+
 	// 2. Detailed text report
 	fmt.Println("   Generating detailed text report...")
 	textFile, err := os.Create("gc_analysis.txt")
@@ -479,18 +480,4 @@ func generateConsistentWorkload(ctx context.Context) {
 			}
 		}
 	}
-}
-
-// formatBytes formats bytes into human-readable format
-func formatBytes(bytes uint64) string {
-	const unit = 1024
-	if bytes < unit {
-		return fmt.Sprintf("%d B", bytes)
-	}
-	div, exp := int64(unit), 0
-	for n := bytes / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }

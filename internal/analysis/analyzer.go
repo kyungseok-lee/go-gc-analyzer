@@ -7,30 +7,6 @@ import (
 	"github.com/kyungseok-lee/go-gc-analyzer/pkg/types"
 )
 
-// Threshold constants for GC performance analysis
-const (
-	// GC frequency thresholds
-	HighGCFrequencyThreshold = 10.0 // GCs per second
-
-	// Pause time thresholds
-	LongAvgPauseTimeThreshold  = 100 * time.Millisecond
-	VeryLongP99PauseThreshold  = 500 * time.Millisecond
-
-	// Memory thresholds
-	HighHeapGrowthRateThreshold = 10 * 1024 * 1024 // 10 MB/s
-
-	// Efficiency thresholds
-	HighGCOverheadThreshold      = 25.0 // percentage
-	LowMemoryEfficiencyThreshold = 50.0 // percentage
-
-	// Allocation thresholds
-	HighAllocationRateThreshold = 100 * 1024 * 1024 // 100 MB/s
-
-	// Growth trend thresholds
-	ConsistentGrowthThreshold = 0.1 // 10% consistent growth
-	MinSamplesForTrendAnalysis = 10
-)
-
 // Analyzer provides GC performance analysis capabilities
 type Analyzer struct {
 	metrics []*types.GCMetrics
@@ -98,9 +74,10 @@ func (a *Analyzer) analyzeGCFrequency(analysis *types.GCAnalysis) {
 	last := a.metrics[len(a.metrics)-1]
 
 	gcCount := last.NumGC - first.NumGC
+	periodSeconds := analysis.Period.Seconds()
 
-	if analysis.Period.Seconds() > 0 {
-		analysis.GCFrequency = float64(gcCount) / analysis.Period.Seconds()
+	if periodSeconds > 0 {
+		analysis.GCFrequency = float64(gcCount) / periodSeconds
 	}
 
 	if gcCount > 0 {
@@ -116,7 +93,8 @@ func (a *Analyzer) analyzePauseTimes(analysis *types.GCAnalysis) {
 		return
 	}
 
-	durations := make([]time.Duration, len(a.events))
+	n := len(a.events)
+	durations := make([]time.Duration, n)
 	var total time.Duration
 
 	for i, event := range a.events {
@@ -128,20 +106,25 @@ func (a *Analyzer) analyzePauseTimes(analysis *types.GCAnalysis) {
 		return durations[i] < durations[j]
 	})
 
-	analysis.AvgPauseTime = total / time.Duration(len(durations))
+	analysis.AvgPauseTime = total / time.Duration(n)
 	analysis.MinPauseTime = durations[0]
-	analysis.MaxPauseTime = durations[len(durations)-1]
+	analysis.MaxPauseTime = durations[n-1]
 
-	// Calculate percentiles
-	p95Index := int(float64(len(durations)) * 0.95)
-	p99Index := int(float64(len(durations)) * 0.99)
+	// Calculate percentiles with bounds checking
+	analysis.P95PauseTime = durations[percentileIndex(n, 0.95)]
+	analysis.P99PauseTime = durations[percentileIndex(n, 0.99)]
+}
 
-	if p95Index < len(durations) {
-		analysis.P95PauseTime = durations[p95Index]
+// percentileIndex calculates the index for a given percentile
+func percentileIndex(n int, percentile float64) int {
+	idx := int(float64(n-1) * percentile)
+	if idx >= n {
+		idx = n - 1
 	}
-	if p99Index < len(durations) {
-		analysis.P99PauseTime = durations[p99Index]
+	if idx < 0 {
+		idx = 0
 	}
+	return idx
 }
 
 // analyzePauseTimesFromMetrics analyzes pause times from metrics when events are not available
@@ -161,8 +144,8 @@ func (a *Analyzer) analyzePauseTimesFromMetrics(analysis *types.GCAnalysis) {
 		analysis.AvgPauseTime = totalPauseTime / time.Duration(totalGCs)
 	}
 
-	// Find min/max from recent pause data
-	var pauses []time.Duration
+	// Find min/max from recent pause data - estimate max capacity to avoid reallocations
+	pauses := make([]time.Duration, 0, len(a.metrics)*256)
 	for _, metrics := range a.metrics {
 		for _, pauseNs := range metrics.PauseNs {
 			if pauseNs > 0 {
@@ -176,58 +159,50 @@ func (a *Analyzer) analyzePauseTimesFromMetrics(analysis *types.GCAnalysis) {
 			return pauses[i] < pauses[j]
 		})
 
+		n := len(pauses)
 		analysis.MinPauseTime = pauses[0]
-		analysis.MaxPauseTime = pauses[len(pauses)-1]
-
-		// Calculate percentiles
-		p95Index := int(float64(len(pauses)) * 0.95)
-		p99Index := int(float64(len(pauses)) * 0.99)
-
-		if p95Index < len(pauses) {
-			analysis.P95PauseTime = pauses[p95Index]
-		}
-		if p99Index < len(pauses) {
-			analysis.P99PauseTime = pauses[p99Index]
-		}
+		analysis.MaxPauseTime = pauses[n-1]
+		analysis.P95PauseTime = pauses[percentileIndex(n, 0.95)]
+		analysis.P99PauseTime = pauses[percentileIndex(n, 0.99)]
 	}
 }
 
 // analyzeMemoryUsage analyzes memory usage patterns
 func (a *Analyzer) analyzeMemoryUsage(analysis *types.GCAnalysis) {
-	if len(a.metrics) == 0 {
+	n := len(a.metrics)
+	if n == 0 {
 		return
 	}
 
 	var totalHeap uint64
-	var minHeap, maxHeap uint64
+	minHeap := a.metrics[0].HeapAlloc
+	maxHeap := a.metrics[0].HeapAlloc
 
-	for i, metrics := range a.metrics {
+	for _, metrics := range a.metrics {
 		heapSize := metrics.HeapAlloc
 		totalHeap += heapSize
 
-		if i == 0 {
+		if heapSize < minHeap {
 			minHeap = heapSize
+		}
+		if heapSize > maxHeap {
 			maxHeap = heapSize
-		} else {
-			if heapSize < minHeap {
-				minHeap = heapSize
-			}
-			if heapSize > maxHeap {
-				maxHeap = heapSize
-			}
 		}
 	}
 
-	analysis.AvgHeapSize = totalHeap / uint64(len(a.metrics))
+	analysis.AvgHeapSize = totalHeap / uint64(n)
 	analysis.MinHeapSize = minHeap
 	analysis.MaxHeapSize = maxHeap
 
 	// Calculate heap growth rate
-	if len(a.metrics) >= 2 && analysis.Period.Seconds() > 0 {
-		first := a.metrics[0]
-		last := a.metrics[len(a.metrics)-1]
-		heapGrowth := int64(last.HeapAlloc) - int64(first.HeapAlloc)
-		analysis.HeapGrowthRate = float64(heapGrowth) / analysis.Period.Seconds()
+	if n >= 2 {
+		periodSeconds := analysis.Period.Seconds()
+		if periodSeconds > 0 {
+			first := a.metrics[0]
+			last := a.metrics[n-1]
+			heapGrowth := int64(last.HeapAlloc) - int64(first.HeapAlloc)
+			analysis.HeapGrowthRate = float64(heapGrowth) / periodSeconds
+		}
 	}
 }
 
@@ -241,20 +216,19 @@ func (a *Analyzer) analyzeAllocations(analysis *types.GCAnalysis) {
 	last := a.metrics[len(a.metrics)-1]
 
 	totalAllocs := last.TotalAlloc - first.TotalAlloc
-	allocCount := last.Mallocs - first.Mallocs
-	freeCount := last.Frees - first.Frees
+	analysis.AllocCount = last.Mallocs - first.Mallocs
+	analysis.FreeCount = last.Frees - first.Frees
 
-	analysis.AllocCount = allocCount
-	analysis.FreeCount = freeCount
-
-	if analysis.Period.Seconds() > 0 {
-		analysis.AllocRate = float64(totalAllocs) / analysis.Period.Seconds()
+	periodSeconds := analysis.Period.Seconds()
+	if periodSeconds > 0 {
+		analysis.AllocRate = float64(totalAllocs) / periodSeconds
 	}
 }
 
 // calculateEfficiencyMetrics calculates GC efficiency metrics
 func (a *Analyzer) calculateEfficiencyMetrics(analysis *types.GCAnalysis) {
-	if len(a.metrics) == 0 {
+	n := len(a.metrics)
+	if n == 0 {
 		return
 	}
 
@@ -279,7 +253,7 @@ func (a *Analyzer) calculateEfficiencyMetrics(analysis *types.GCAnalysis) {
 		for _, metrics := range a.metrics {
 			totalHeapSys += metrics.HeapSys
 		}
-		avgHeapSys := totalHeapSys / uint64(len(a.metrics))
+		avgHeapSys := totalHeapSys / uint64(n)
 
 		if avgHeapSys > 0 {
 			analysis.MemoryEfficiency = (float64(analysis.AvgHeapSize) / float64(avgHeapSys)) * 100
@@ -289,53 +263,54 @@ func (a *Analyzer) calculateEfficiencyMetrics(analysis *types.GCAnalysis) {
 
 // generateRecommendations generates performance improvement recommendations
 func (a *Analyzer) generateRecommendations(analysis *types.GCAnalysis) {
-	recommendations := make([]string, 0)
+	// Pre-allocate with estimated capacity
+	recommendations := make([]string, 0, 8)
 
 	// High GC frequency recommendations
-	if analysis.GCFrequency > HighGCFrequencyThreshold {
+	if analysis.GCFrequency > types.ThresholdGCFrequencyHigh {
 		recommendations = append(recommendations,
 			"High GC frequency detected. Consider reducing allocation rate or increasing GOGC value.")
 	}
 
 	// Long pause time recommendations
-	if analysis.AvgPauseTime > LongAvgPauseTimeThreshold {
+	if analysis.AvgPauseTime > types.ThresholdAvgPauseLong {
 		recommendations = append(recommendations,
 			"Long GC pause times detected. Consider reducing heap size or optimizing allocation patterns.")
 	}
 
-	if analysis.P99PauseTime > VeryLongP99PauseThreshold {
+	if analysis.P99PauseTime > types.ThresholdP99PauseVeryLong {
 		recommendations = append(recommendations,
 			"Very long P99 pause times detected. This may impact application responsiveness.")
 	}
 
 	// Memory growth recommendations
-	if analysis.HeapGrowthRate > HighHeapGrowthRateThreshold {
+	if analysis.HeapGrowthRate > types.ThresholdHeapGrowthRateHigh {
 		recommendations = append(recommendations,
 			"High heap growth rate detected. Check for memory leaks or excessive allocations.")
 	}
 
 	// High GC overhead recommendations
-	if analysis.GCOverhead > HighGCOverheadThreshold {
+	if analysis.GCOverhead > types.ThresholdGCOverheadHigh {
 		recommendations = append(recommendations,
 			"High GC overhead detected. Consider optimizing allocation patterns or tuning GC parameters.")
 	}
 
 	// Low memory efficiency recommendations
-	if analysis.MemoryEfficiency < LowMemoryEfficiencyThreshold {
+	if analysis.MemoryEfficiency > 0 && analysis.MemoryEfficiency < types.ThresholdMemoryEfficiencyLow {
 		recommendations = append(recommendations,
 			"Low memory efficiency detected. Consider reducing heap fragmentation or optimizing data structures.")
 	}
 
 	// Allocation rate recommendations
-	if analysis.AllocRate > HighAllocationRateThreshold {
+	if analysis.AllocRate > types.ThresholdAllocationRateHigh {
 		recommendations = append(recommendations,
 			"High allocation rate detected. Consider object pooling or reducing temporary object creation.")
 	}
 
 	// Memory leak detection
-	if len(a.metrics) >= MinSamplesForTrendAnalysis {
+	if len(a.metrics) >= types.MinSamplesForTrendAnalysis {
 		recentGrowth := a.calculateRecentGrowthTrend()
-		if recentGrowth > ConsistentGrowthThreshold {
+		if recentGrowth > types.ThresholdConsistentGrowth {
 			recommendations = append(recommendations,
 				"Consistent memory growth detected. Investigate potential memory leaks.")
 		}
@@ -346,12 +321,14 @@ func (a *Analyzer) generateRecommendations(analysis *types.GCAnalysis) {
 
 // calculateRecentGrowthTrend calculates the recent memory growth trend
 func (a *Analyzer) calculateRecentGrowthTrend() float64 {
-	if len(a.metrics) < MinSamplesForTrendAnalysis {
+	n := len(a.metrics)
+	if n < types.MinSamplesForTrendAnalysis {
 		return 0
 	}
 
 	// Look at the last MinSamplesForTrendAnalysis samples to detect trend
-	recent := a.metrics[len(a.metrics)-MinSamplesForTrendAnalysis:]
+	startIdx := n - types.MinSamplesForTrendAnalysis
+	recent := a.metrics[startIdx:]
 
 	var totalGrowth float64
 	growthPoints := 0
@@ -386,31 +363,39 @@ func (a *Analyzer) GetPauseTimeDistribution() map[string]int {
 	}
 
 	for _, event := range a.events {
-		duration := event.Duration
-
-		switch {
-		case duration < time.Millisecond:
-			distribution["0-1ms"]++
-		case duration < 5*time.Millisecond:
-			distribution["1-5ms"]++
-		case duration < 10*time.Millisecond:
-			distribution["5-10ms"]++
-		case duration < 50*time.Millisecond:
-			distribution["10-50ms"]++
-		case duration < 100*time.Millisecond:
-			distribution["50-100ms"]++
-		default:
-			distribution["100ms+"]++
-		}
+		bucket := getPauseTimeBucket(event.Duration)
+		distribution[bucket]++
 	}
 
 	return distribution
 }
 
+// getPauseTimeBucket returns the bucket name for a given duration
+func getPauseTimeBucket(d time.Duration) string {
+	switch {
+	case d < time.Millisecond:
+		return "0-1ms"
+	case d < 5*time.Millisecond:
+		return "1-5ms"
+	case d < 10*time.Millisecond:
+		return "5-10ms"
+	case d < 50*time.Millisecond:
+		return "10-50ms"
+	case d < 100*time.Millisecond:
+		return "50-100ms"
+	default:
+		return "100ms+"
+	}
+}
+
 // GetMemoryTrend returns memory usage trend over time
 func (a *Analyzer) GetMemoryTrend() []types.MemoryPoint {
-	points := make([]types.MemoryPoint, len(a.metrics))
+	n := len(a.metrics)
+	if n == 0 {
+		return nil
+	}
 
+	points := make([]types.MemoryPoint, n)
 	for i, metrics := range a.metrics {
 		points[i] = types.MemoryPoint{
 			Timestamp: metrics.Timestamp,

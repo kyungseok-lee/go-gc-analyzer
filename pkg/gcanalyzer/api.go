@@ -46,14 +46,14 @@ import (
 	"github.com/kyungseok-lee/go-gc-analyzer/pkg/types"
 )
 
-// Alert threshold constants
+// Alert threshold constants - using common constants from types package
 const (
 	// GC CPU fraction thresholds
-	AlertGCCPUFractionThreshold = 0.25 // 25%
+	AlertGCCPUFractionThreshold = types.ThresholdGCCPUFractionAlert // 25%
 
 	// Pause time thresholds
-	AlertWarningPauseThreshold  = 100 * time.Millisecond
-	AlertCriticalPauseThreshold = 500 * time.Millisecond
+	AlertWarningPauseThreshold  = types.ThresholdPauseWarning  // 100ms
+	AlertCriticalPauseThreshold = types.ThresholdPauseCritical // 500ms
 )
 
 // Re-export commonly used types for convenience
@@ -156,17 +156,17 @@ type Alert struct {
 func NewMonitor(config *MonitorConfig) *Monitor {
 	if config == nil {
 		config = &MonitorConfig{
-			Interval:   time.Second,
-			MaxSamples: 1000,
+			Interval:   types.DefaultCollectionInterval,
+			MaxSamples: types.DefaultMaxSamples,
 		}
 	}
 
 	if config.Interval == 0 {
-		config.Interval = time.Second
+		config.Interval = types.DefaultCollectionInterval
 	}
 
 	if config.MaxSamples == 0 {
-		config.MaxSamples = 1000
+		config.MaxSamples = types.DefaultMaxSamples
 	}
 
 	monitor := &Monitor{

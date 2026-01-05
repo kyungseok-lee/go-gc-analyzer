@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/kyungseok-lee/go-gc-analyzer/pkg/gcanalyzer"
+	"github.com/kyungseok-lee/go-gc-analyzer/pkg/types"
 )
 
 func main() {
@@ -19,7 +20,7 @@ func main() {
 	fmt.Println("1. Single Metrics Collection:")
 	singleMetrics := gcanalyzer.CollectOnce()
 	fmt.Printf("   Current GC count: %d\n", singleMetrics.NumGC)
-	fmt.Printf("   Current heap size: %s\n", singleMetrics.ToBytes(singleMetrics.HeapAlloc))
+	fmt.Printf("   Current heap size: %s\n", types.FormatBytes(singleMetrics.HeapAlloc))
 	fmt.Printf("   GC CPU fraction: %.2f%%\n\n", singleMetrics.GCCPUFraction*100)
 
 	// Example 2: Collect metrics for a duration
@@ -50,8 +51,8 @@ func main() {
 		gcCount := last.NumGC - first.NumGC
 		fmt.Printf("   GC count during collection: %d\n", gcCount)
 		fmt.Printf("   Heap growth: %s -> %s\n",
-			first.ToBytes(first.HeapAlloc),
-			last.ToBytes(last.HeapAlloc))
+			types.FormatBytes(first.HeapAlloc),
+			types.FormatBytes(last.HeapAlloc))
 	}
 
 	// Example 3: Analyze the collected metrics
@@ -72,8 +73,8 @@ func main() {
 	fmt.Printf("   GC Frequency: %.2f GCs/second\n", analysis.GCFrequency)
 	fmt.Printf("   Average GC Interval: %v\n", analysis.AvgGCInterval.Round(time.Millisecond))
 	fmt.Printf("   Average Pause Time: %v\n", analysis.AvgPauseTime.Round(time.Microsecond))
-	fmt.Printf("   Average Heap Size: %s\n", formatBytes(analysis.AvgHeapSize))
-	fmt.Printf("   Allocation Rate: %s/second\n", formatBytes(uint64(analysis.AllocRate)))
+	fmt.Printf("   Average Heap Size: %s\n", types.FormatBytes(analysis.AvgHeapSize))
+	fmt.Printf("   Allocation Rate: %s\n", types.FormatBytesRate(analysis.AllocRate))
 	fmt.Printf("   GC Overhead: %.2f%%\n", analysis.GCOverhead)
 	fmt.Printf("   Memory Efficiency: %.2f%%\n", analysis.MemoryEfficiency)
 
@@ -140,18 +141,4 @@ func generateWorkload(ctx context.Context) {
 			}
 		}
 	}
-}
-
-// formatBytes formats bytes into human-readable format
-func formatBytes(bytes uint64) string {
-	const unit = 1024
-	if bytes < unit {
-		return fmt.Sprintf("%d B", bytes)
-	}
-	div, exp := int64(unit), 0
-	for n := bytes / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }

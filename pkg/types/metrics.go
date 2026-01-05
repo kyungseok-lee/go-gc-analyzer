@@ -1,7 +1,6 @@
 package types
 
 import (
-	"fmt"
 	"runtime"
 	"time"
 )
@@ -148,17 +147,9 @@ func NewGCMetrics() *GCMetrics {
 }
 
 // ToBytes converts size values to human-readable byte format
+// Deprecated: Use types.FormatBytes() function instead
 func (m *GCMetrics) ToBytes(size uint64) string {
-	const unit = 1024
-	if size < unit {
-		return fmt.Sprintf("%d B", size)
-	}
-	div, exp := int64(unit), 0
-	for n := size / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB", float64(size)/float64(div), "KMGTPE"[exp])
+	return FormatBytes(size)
 }
 
 // ToDuration converts nanoseconds to human-readable duration
