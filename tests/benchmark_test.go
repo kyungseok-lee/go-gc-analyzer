@@ -8,7 +8,12 @@ import (
 	"time"
 
 	"github.com/kyungseok-lee/go-gc-analyzer/pkg/gcanalyzer"
+	"github.com/kyungseok-lee/go-gc-analyzer/pkg/types"
 )
+
+// =============================================================================
+// Metric Collection Benchmarks
+// =============================================================================
 
 // BenchmarkCollectOnce_Benchmark measures the performance of single metric collection
 func BenchmarkCollectOnce_Benchmark(b *testing.B) {
@@ -32,12 +37,39 @@ func BenchmarkNewGCMetrics(b *testing.B) {
 	}
 }
 
+// BenchmarkNewGCMetricsLite measures the performance of lightweight metrics creation
+func BenchmarkNewGCMetricsLite(b *testing.B) {
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		metrics := types.NewGCMetricsLite()
+		if metrics == nil {
+			b.Fatal("Expected metrics")
+		}
+	}
+}
+
+// BenchmarkNewGCMetricsPooled measures the performance of pooled metrics creation
+func BenchmarkNewGCMetricsPooled(b *testing.B) {
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		metrics := types.NewGCMetricsPooled()
+		if metrics == nil {
+			b.Fatal("Expected metrics")
+		}
+		metrics.Release() // Return to pool
+	}
+}
+
+// =============================================================================
+// Analyzer Benchmarks
+// =============================================================================
+
 // BenchmarkAnalyzer_Analyze_Benchmark measures the performance of GC analysis
 func BenchmarkAnalyzer_Analyze_Benchmark(b *testing.B) {
 	// Create test dataset
 	metrics := generateTestMetrics(100)
 	events := generateTestEvents(50)
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		analysis, err := gcanalyzer.AnalyzeWithEvents(metrics, events)
@@ -66,11 +98,28 @@ func BenchmarkAnalyzer_AnalyzeSmallDataset(b *testing.B) {
 	}
 }
 
+// BenchmarkAnalyzer_AnalyzeMediumDataset measures analysis performance with medium dataset
+func BenchmarkAnalyzer_AnalyzeMediumDataset(b *testing.B) {
+	metrics := generateTestMetrics(100)
+	events := generateTestEvents(50)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		analysis, err := gcanalyzer.AnalyzeWithEvents(metrics, events)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if analysis == nil {
+			b.Fatal("Expected analysis")
+		}
+	}
+}
+
 // BenchmarkAnalyzer_AnalyzeLargeDataset measures analysis performance with large dataset
 func BenchmarkAnalyzer_AnalyzeLargeDataset(b *testing.B) {
 	metrics := generateTestMetrics(1000)
 	events := generateTestEvents(500)
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		analysis, err := gcanalyzer.AnalyzeWithEvents(metrics, events)
@@ -86,7 +135,7 @@ func BenchmarkAnalyzer_AnalyzeLargeDataset(b *testing.B) {
 // BenchmarkAnalyzer_GetMemoryTrend measures memory trend calculation performance
 func BenchmarkAnalyzer_GetMemoryTrend(b *testing.B) {
 	metrics := generateTestMetrics(100)
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		trend := gcanalyzer.GetMemoryTrend(metrics)
@@ -99,7 +148,7 @@ func BenchmarkAnalyzer_GetMemoryTrend(b *testing.B) {
 // BenchmarkAnalyzer_GetPauseTimeDistribution measures pause time distribution calculation
 func BenchmarkAnalyzer_GetPauseTimeDistribution(b *testing.B) {
 	events := generateTestEvents(100)
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		distribution := gcanalyzer.GetPauseTimeDistribution(events)
@@ -109,13 +158,17 @@ func BenchmarkAnalyzer_GetPauseTimeDistribution(b *testing.B) {
 	}
 }
 
+// =============================================================================
+// Reporter Benchmarks
+// =============================================================================
+
 // BenchmarkReporter_GenerateTextReport measures text report generation performance
 func BenchmarkReporter_GenerateTextReport(b *testing.B) {
 	metrics := generateTestMetrics(50)
 	events := generateTestEvents(25)
-	
+
 	analysis, _ := gcanalyzer.AnalyzeWithEvents(metrics, events)
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		var buf strings.Builder
@@ -130,9 +183,9 @@ func BenchmarkReporter_GenerateTextReport(b *testing.B) {
 func BenchmarkReporter_GenerateJSONReport(b *testing.B) {
 	metrics := generateTestMetrics(50)
 	events := generateTestEvents(25)
-	
+
 	analysis, _ := gcanalyzer.AnalyzeWithEvents(metrics, events)
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		var buf strings.Builder
@@ -143,31 +196,27 @@ func BenchmarkReporter_GenerateJSONReport(b *testing.B) {
 	}
 }
 
-// BenchmarkReporter_GenerateTableReport measures table report generation performance
-// NOTE: TableReport not available in new API, disabled for now
-/*
-func BenchmarkReporter_GenerateTableReport(b *testing.B) {
+// BenchmarkReporter_GenerateSummaryReport measures summary report generation performance
+func BenchmarkReporter_GenerateSummaryReport(b *testing.B) {
 	metrics := generateTestMetrics(50)
-	
 	analysis, _ := gcanalyzer.Analyze(metrics)
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		var buf strings.Builder
-		err := gcanalyzer.GenerateTableReport(analysis, metrics, nil, &buf)
+		err := gcanalyzer.GenerateSummaryReport(analysis, &buf)
 		if err != nil {
 			b.Fatal(err)
 		}
 	}
 }
-*/
 
 // BenchmarkReporter_GenerateHealthCheck measures health check generation performance
 func BenchmarkReporter_GenerateHealthCheck(b *testing.B) {
 	metrics := generateTestMetrics(50)
-	
+
 	analysis, _ := gcanalyzer.Analyze(metrics)
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		healthCheck := gcanalyzer.GenerateHealthCheck(analysis)
@@ -177,60 +226,9 @@ func BenchmarkReporter_GenerateHealthCheck(b *testing.B) {
 	}
 }
 
-// BenchmarkCollector_StartStop measures collector start/stop overhead
-// NOTE: Collector moved to internal package, using Monitor instead
-/*
-func BenchmarkCollector_StartStop(b *testing.B) {
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		monitor := gcanalyzer.NewMonitor(&gcanalyzer.MonitorConfig{
-			Interval: time.Hour, // Very long interval to avoid actual collection
-		})
-		
-		ctx := context.Background()
-		err := monitor.Start(ctx)
-		if err != nil {
-			b.Fatal(err)
-		}
-		
-		monitor.Stop()
-	}
-}
-*/
-
-// BenchmarkCollector_Collection measures the overhead of the collection process
-// NOTE: Collector moved to internal package, disabled for now
-/*
-func BenchmarkCollector_Collection(b *testing.B) {
-	var collectedCount int
-	
-	config := &gcanalyzer.MonitorConfig{
-		Interval:   time.Millisecond, // Very fast collection
-		MaxSamples: 1000,
-		OnMetric: func(m *gcanalyzer.GCMetrics) {
-			collectedCount++
-		},
-	}
-	
-	monitor := gcanalyzer.NewMonitor(config)
-	
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(b.N)*time.Millisecond)
-	defer cancel()
-	
-	b.ResetTimer()
-	
-	err := monitor.Start(ctx)
-	if err != nil {
-		b.Fatal(err)
-	}
-	
-	<-ctx.Done()
-	monitor.Stop()
-	
-	b.StopTimer()
-	b.Logf("Collected %d metrics during benchmark", collectedCount)
-}
-*/
+// =============================================================================
+// Real-World Scenario Benchmarks
+// =============================================================================
 
 // BenchmarkRealWorldScenario simulates a real-world monitoring scenario
 func BenchmarkRealWorldScenario(b *testing.B) {
@@ -251,19 +249,19 @@ func BenchmarkRealWorldScenario(b *testing.B) {
 			continue // Skip if no metrics collected
 		}
 
-				// Analyze the metrics
+		// Analyze the metrics
 		analysis, err := gcanalyzer.Analyze(metrics)
 		if err != nil {
 			b.Fatal(err)
 		}
-		
+
 		// Generate a report
 		var buf strings.Builder
 		err = gcanalyzer.GenerateSummaryReport(analysis, &buf)
 		if err != nil {
 			b.Fatal(err)
 		}
-		
+
 		// Generate health check
 		healthCheck := gcanalyzer.GenerateHealthCheck(analysis)
 		if healthCheck == nil {
@@ -271,6 +269,37 @@ func BenchmarkRealWorldScenario(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkHighFrequencyCollection simulates high-frequency metrics collection
+func BenchmarkHighFrequencyCollection(b *testing.B) {
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		// Collect 10 metrics rapidly
+		for j := 0; j < 10; j++ {
+			metrics := types.NewGCMetricsLite()
+			if metrics == nil {
+				b.Fatal("Expected metrics")
+			}
+		}
+	}
+}
+
+// BenchmarkConcurrentCollection measures concurrent collection performance
+func BenchmarkConcurrentCollection(b *testing.B) {
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			metrics := gcanalyzer.CollectOnce()
+			if metrics == nil {
+				b.Fatal("Expected metrics")
+			}
+		}
+	})
+}
+
+// =============================================================================
+// Memory Benchmarks
+// =============================================================================
 
 // BenchmarkMemoryUsage measures memory usage of the analyzer
 func BenchmarkMemoryUsage(b *testing.B) {
@@ -284,15 +313,15 @@ func BenchmarkMemoryUsage(b *testing.B) {
 	runtime.GC()
 	runtime.ReadMemStats(&m1)
 
-		for i := 0; i < b.N; i++ {
+	for i := 0; i < b.N; i++ {
 		analysis, err := gcanalyzer.AnalyzeWithEvents(metrics, events)
 		if err != nil {
 			b.Fatal(err)
 		}
-		
+
 		var buf strings.Builder
 		gcanalyzer.GenerateTextReport(analysis, metrics, events, &buf)
-		
+
 		// Force cleanup
 		runtime.KeepAlive(analysis)
 	}
@@ -305,7 +334,52 @@ func BenchmarkMemoryUsage(b *testing.B) {
 	b.Logf("Allocations: %d", m2.Mallocs-m1.Mallocs)
 }
 
-// Helper function to generate test metrics
+// BenchmarkMemoryAllocationPattern measures allocation patterns under load
+func BenchmarkMemoryAllocationPattern(b *testing.B) {
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		// Simulate typical usage pattern
+		metrics := generateTestMetrics(100)
+
+		analysis, err := gcanalyzer.Analyze(metrics)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		_ = gcanalyzer.GenerateHealthCheck(analysis)
+	}
+}
+
+// =============================================================================
+// Scale Benchmarks
+// =============================================================================
+
+// BenchmarkScaleAnalysis measures how analysis scales with data size
+func BenchmarkScaleAnalysis(b *testing.B) {
+	sizes := []int{10, 50, 100, 500, 1000}
+
+	for _, size := range sizes {
+		b.Run(strings.Replace(string(rune(size)), "", "", -1), func(b *testing.B) {
+			metrics := generateTestMetrics(size)
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, err := gcanalyzer.Analyze(metrics)
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+// generateTestMetrics creates test metrics data
 func generateTestMetrics(count int) []*gcanalyzer.GCMetrics {
 	metrics := make([]*gcanalyzer.GCMetrics, count)
 	now := time.Now()
@@ -338,7 +412,7 @@ func generateTestMetrics(count int) []*gcanalyzer.GCMetrics {
 	return metrics
 }
 
-// Helper function to generate test events
+// generateTestEvents creates test GC events
 func generateTestEvents(count int) []*gcanalyzer.GCEvent {
 	events := make([]*gcanalyzer.GCEvent, count)
 	now := time.Now()

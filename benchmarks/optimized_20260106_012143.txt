@@ -1,0 +1,111 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/kyungseok-lee/go-gc-analyzer/tests
+cpu: Apple M1 Pro
+BenchmarkCollectOnce_Benchmark-10                	   54178	     21201 ns/op	    4352 B/op	       3 allocs/op
+BenchmarkCollectOnce_Benchmark-10                	   58254	     22032 ns/op	    4352 B/op	       3 allocs/op
+BenchmarkCollectOnce_Benchmark-10                	   53500	     22118 ns/op	    4352 B/op	       3 allocs/op
+BenchmarkCollectOnce_Benchmark-10                	   53292	     23176 ns/op	    4352 B/op	       3 allocs/op
+BenchmarkCollectOnce_Benchmark-10                	   49405	     26254 ns/op	    4352 B/op	       3 allocs/op
+BenchmarkNewGCMetrics-10                         	   46180	     22998 ns/op	    4352 B/op	       3 allocs/op
+BenchmarkNewGCMetrics-10                         	   52479	     23538 ns/op	    4352 B/op	       3 allocs/op
+BenchmarkNewGCMetrics-10                         	   50490	     24793 ns/op	    4352 B/op	       3 allocs/op
+BenchmarkNewGCMetrics-10                         	   53106	     23701 ns/op	    4352 B/op	       3 allocs/op
+BenchmarkNewGCMetrics-10                         	   42520	     26483 ns/op	    4352 B/op	       3 allocs/op
+BenchmarkAnalyzer_Analyze_Benchmark-10           	 2319626	       515.9 ns/op	     336 B/op	       2 allocs/op
+BenchmarkAnalyzer_Analyze_Benchmark-10           	 2329014	       503.7 ns/op	     336 B/op	       2 allocs/op
+BenchmarkAnalyzer_Analyze_Benchmark-10           	 2326562	       523.1 ns/op	     336 B/op	       2 allocs/op
+BenchmarkAnalyzer_Analyze_Benchmark-10           	 2359578	       510.2 ns/op	     336 B/op	       2 allocs/op
+BenchmarkAnalyzer_Analyze_Benchmark-10           	 2283051	       517.6 ns/op	     336 B/op	       2 allocs/op
+BenchmarkAnalyzer_AnalyzeSmallDataset-10         	  254608	      4821 ns/op	     336 B/op	       2 allocs/op
+BenchmarkAnalyzer_AnalyzeSmallDataset-10         	  256800	      4729 ns/op	     336 B/op	       2 allocs/op
+BenchmarkAnalyzer_AnalyzeSmallDataset-10         	  253662	      4739 ns/op	     336 B/op	       2 allocs/op
+BenchmarkAnalyzer_AnalyzeSmallDataset-10         	  256016	      4731 ns/op	     336 B/op	       2 allocs/op
+BenchmarkAnalyzer_AnalyzeSmallDataset-10         	  256536	      4726 ns/op	     336 B/op	       2 allocs/op
+BenchmarkAnalyzer_AnalyzeLargeDataset-10         	  238659	      5066 ns/op	    4434 B/op	       3 allocs/op
+BenchmarkAnalyzer_AnalyzeLargeDataset-10         	  242264	      5014 ns/op	    4435 B/op	       3 allocs/op
+BenchmarkAnalyzer_AnalyzeLargeDataset-10         	  229207	      5040 ns/op	    4435 B/op	       3 allocs/op
+BenchmarkAnalyzer_AnalyzeLargeDataset-10         	  240069	      5028 ns/op	    4434 B/op	       3 allocs/op
+BenchmarkAnalyzer_AnalyzeLargeDataset-10         	  238615	      5082 ns/op	    4435 B/op	       3 allocs/op
+BenchmarkAnalyzer_GetMemoryTrend-10              	 1517079	       810.8 ns/op	    4864 B/op	       1 allocs/op
+BenchmarkAnalyzer_GetMemoryTrend-10              	 1506738	       804.8 ns/op	    4864 B/op	       1 allocs/op
+BenchmarkAnalyzer_GetMemoryTrend-10              	 1524522	       796.2 ns/op	    4864 B/op	       1 allocs/op
+BenchmarkAnalyzer_GetMemoryTrend-10              	 1471800	       803.0 ns/op	    4864 B/op	       1 allocs/op
+BenchmarkAnalyzer_GetMemoryTrend-10              	 1473046	       801.8 ns/op	    4864 B/op	       1 allocs/op
+BenchmarkAnalyzer_GetPauseTimeDistribution-10    	 1000000	      1023 ns/op	     256 B/op	       2 allocs/op
+BenchmarkAnalyzer_GetPauseTimeDistribution-10    	 1000000	      1023 ns/op	     256 B/op	       2 allocs/op
+BenchmarkAnalyzer_GetPauseTimeDistribution-10    	 1000000	      1024 ns/op	     256 B/op	       2 allocs/op
+BenchmarkAnalyzer_GetPauseTimeDistribution-10    	 1000000	      1049 ns/op	     256 B/op	       2 allocs/op
+BenchmarkAnalyzer_GetPauseTimeDistribution-10    	 1000000	      1021 ns/op	     256 B/op	       2 allocs/op
+BenchmarkReporter_GenerateTextReport-10          	  709345	      1627 ns/op	    2817 B/op	      12 allocs/op
+BenchmarkReporter_GenerateTextReport-10          	  743649	      1629 ns/op	    2817 B/op	      12 allocs/op
+BenchmarkReporter_GenerateTextReport-10          	  722847	      1725 ns/op	    2817 B/op	      12 allocs/op
+BenchmarkReporter_GenerateTextReport-10          	  681180	      1685 ns/op	    2817 B/op	      12 allocs/op
+BenchmarkReporter_GenerateTextReport-10          	  675632	      1694 ns/op	    2817 B/op	      12 allocs/op
+BenchmarkReporter_GenerateJSONReport-10          	    3513	    346525 ns/op	   97815 B/op	     155 allocs/op
+BenchmarkReporter_GenerateJSONReport-10          	    3438	    349253 ns/op	   97743 B/op	     155 allocs/op
+BenchmarkReporter_GenerateJSONReport-10          	    3486	    369265 ns/op	   98268 B/op	     155 allocs/op
+BenchmarkReporter_GenerateJSONReport-10          	    3417	    366003 ns/op	   97974 B/op	     155 allocs/op
+BenchmarkReporter_GenerateJSONReport-10          	    3428	    347457 ns/op	   97973 B/op	     155 allocs/op
+BenchmarkReporter_GenerateHealthCheck-10         	12697063	        93.85 ns/op	     192 B/op	       2 allocs/op
+BenchmarkReporter_GenerateHealthCheck-10         	12726142	        96.73 ns/op	     192 B/op	       2 allocs/op
+BenchmarkReporter_GenerateHealthCheck-10         	11807134	       100.7 ns/op	     192 B/op	       2 allocs/op
+BenchmarkReporter_GenerateHealthCheck-10         	12101978	       103.8 ns/op	     192 B/op	       2 allocs/op
+BenchmarkReporter_GenerateHealthCheck-10         	11915493	        98.45 ns/op	     192 B/op	       2 allocs/op
+BenchmarkRealWorldScenario-10                    	      10	 101271204 ns/op	   66650 B/op	      60 allocs/op
+BenchmarkRealWorldScenario-10                    	      10	 101262988 ns/op	   65185 B/op	      59 allocs/op
+BenchmarkRealWorldScenario-10                    	      10	 101290900 ns/op	   67022 B/op	      59 allocs/op
+BenchmarkRealWorldScenario-10                    	      10	 101259396 ns/op	   65598 B/op	      58 allocs/op
+BenchmarkRealWorldScenario-10                    	      10	 101167367 ns/op	   65178 B/op	      58 allocs/op
+BenchmarkMemoryUsage-10                          	  150564	      7241 ns/op	    7392 B/op	      15 allocs/op
+--- BENCH: BenchmarkMemoryUsage-10
+    benchmark_test.go:304: Memory used: 12336 bytes
+    benchmark_test.go:305: Allocations: 22
+    benchmark_test.go:304: Memory used: 743344 bytes
+    benchmark_test.go:305: Allocations: 1507
+    benchmark_test.go:304: Memory used: 73934240 bytes
+    benchmark_test.go:305: Allocations: 150146
+    benchmark_test.go:304: Memory used: 1113027720 bytes
+    benchmark_test.go:305: Allocations: 2260431
+BenchmarkMemoryUsage-10                          	  155635	      6797 ns/op	    7392 B/op	      15 allocs/op
+--- BENCH: BenchmarkMemoryUsage-10
+    benchmark_test.go:304: Memory used: 12336 bytes
+    benchmark_test.go:305: Allocations: 22
+    benchmark_test.go:304: Memory used: 743344 bytes
+    benchmark_test.go:305: Allocations: 1507
+    benchmark_test.go:304: Memory used: 73933856 bytes
+    benchmark_test.go:305: Allocations: 150143
+    benchmark_test.go:304: Memory used: 1150460784 bytes
+    benchmark_test.go:305: Allocations: 2336488
+BenchmarkMemoryUsage-10                          	  176184	      6912 ns/op	    7392 B/op	      15 allocs/op
+--- BENCH: BenchmarkMemoryUsage-10
+    benchmark_test.go:304: Memory used: 12336 bytes
+    benchmark_test.go:305: Allocations: 22
+    benchmark_test.go:304: Memory used: 743344 bytes
+    benchmark_test.go:305: Allocations: 1507
+    benchmark_test.go:304: Memory used: 73922072 bytes
+    benchmark_test.go:305: Allocations: 150123
+    benchmark_test.go:304: Memory used: 1302435432 bytes
+    benchmark_test.go:305: Allocations: 2645056
+BenchmarkMemoryUsage-10                          	  167092	      7134 ns/op	    7392 B/op	      15 allocs/op
+--- BENCH: BenchmarkMemoryUsage-10
+    benchmark_test.go:304: Memory used: 12336 bytes
+    benchmark_test.go:305: Allocations: 22
+    benchmark_test.go:304: Memory used: 743344 bytes
+    benchmark_test.go:305: Allocations: 1507
+    benchmark_test.go:304: Memory used: 73928896 bytes
+    benchmark_test.go:305: Allocations: 150127
+    benchmark_test.go:304: Memory used: 1235251280 bytes
+    benchmark_test.go:305: Allocations: 2508611
+BenchmarkMemoryUsage-10                          	  174057	      6734 ns/op	    7392 B/op	      15 allocs/op
+--- BENCH: BenchmarkMemoryUsage-10
+    benchmark_test.go:304: Memory used: 12336 bytes
+    benchmark_test.go:305: Allocations: 22
+    benchmark_test.go:304: Memory used: 743344 bytes
+    benchmark_test.go:305: Allocations: 1507
+    benchmark_test.go:304: Memory used: 73932680 bytes
+    benchmark_test.go:305: Allocations: 150149
+    benchmark_test.go:304: Memory used: 1286631024 bytes
+    benchmark_test.go:305: Allocations: 2613048
+PASS
+ok  	github.com/kyungseok-lee/go-gc-analyzer/tests	107.966s
