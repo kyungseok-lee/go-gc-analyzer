@@ -25,6 +25,9 @@ type Collector struct {
 	// Callbacks
 	onMetricCollected func(*types.GCMetrics)
 	onGCEvent         func(*types.GCEvent)
+
+	// useLiteMetrics controls whether to use lightweight metrics collection
+	useLiteMetrics bool
 }
 
 // Config holds configuration for the collector
@@ -38,6 +41,9 @@ type Config struct {
 	// Callback functions
 	OnMetricCollected func(*types.GCMetrics)
 	OnGCEvent         func(*types.GCEvent)
+
+	// UseLiteMetrics uses lightweight metrics without pause slice data (saves ~4KB per sample)
+	UseLiteMetrics bool
 }
 
 // New creates a new GC metrics collector
@@ -59,11 +65,12 @@ func New(config *Config) *Collector {
 	return &Collector{
 		interval:          interval,
 		maxSamples:        maxSamples,
-		metrics:           make([]*types.GCMetrics, 0, maxSamples),
-		events:            make([]*types.GCEvent, 0, maxSamples),
+		metrics:           make([]*types.GCMetrics, 0, min(maxSamples, 256)), // Reasonable initial capacity
+		events:            make([]*types.GCEvent, 0, min(maxSamples, 256)),
 		stopCh:            make(chan struct{}),
 		onMetricCollected: config.OnMetricCollected,
 		onGCEvent:         config.OnGCEvent,
+		useLiteMetrics:    config.UseLiteMetrics,
 	}
 }
 
@@ -145,25 +152,7 @@ func (c *Collector) GetLatestMetrics() *types.GCMetrics {
 
 	// Return a deep copy to prevent race conditions
 	latest := c.metrics[len(c.metrics)-1]
-	return copyMetrics(latest)
-}
-
-// copyMetrics creates a deep copy of GCMetrics
-func copyMetrics(src *types.GCMetrics) *types.GCMetrics {
-	dst := *src
-
-	// Deep copy slices
-	if len(src.PauseNs) > 0 {
-		dst.PauseNs = make([]uint64, len(src.PauseNs))
-		copy(dst.PauseNs, src.PauseNs)
-	}
-
-	if len(src.PauseEnd) > 0 {
-		dst.PauseEnd = make([]uint64, len(src.PauseEnd))
-		copy(dst.PauseEnd, src.PauseEnd)
-	}
-
-	return &dst
+	return latest.Clone()
 }
 
 // Clear removes all collected metrics and events
@@ -171,8 +160,25 @@ func (c *Collector) Clear() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// Clear references for GC
+	clear(c.metrics)
+	clear(c.events)
 	c.metrics = c.metrics[:0]
 	c.events = c.events[:0]
+}
+
+// MetricCount returns the current number of collected metrics
+func (c *Collector) MetricCount() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return len(c.metrics)
+}
+
+// EventCount returns the current number of collected events
+func (c *Collector) EventCount() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return len(c.events)
 }
 
 // collectLoop runs the collection loop.
@@ -193,7 +199,12 @@ func (c *Collector) collectLoop(ctx context.Context) {
 		case <-c.stopCh:
 			return
 		case <-ticker.C:
-			metrics := types.NewGCMetrics()
+			var metrics *types.GCMetrics
+			if c.useLiteMetrics {
+				metrics = types.NewGCMetricsLite()
+			} else {
+				metrics = types.NewGCMetrics()
+			}
 
 			// Detect new GC events
 			if lastGCCount > 0 && metrics.NumGC > lastGCCount {
@@ -231,6 +242,11 @@ func (c *Collector) addMetrics(metrics *types.GCMetrics) {
 
 // detectGCEvents detects and records GC events
 func (c *Collector) detectGCEvents(lastGCCount uint32, current *types.GCMetrics) {
+	// Skip if no pause data available (lite mode)
+	if len(current.PauseNs) == 0 {
+		return
+	}
+
 	newGCCount := current.NumGC - lastGCCount
 	pauseLen := uint32(len(current.PauseNs))
 
@@ -307,6 +323,11 @@ func CollectOnce() *types.GCMetrics {
 	return types.NewGCMetrics()
 }
 
+// CollectOnceLite collects a single lightweight GC metrics sample (no pause data)
+func CollectOnceLite() *types.GCMetrics {
+	return types.NewGCMetricsLite()
+}
+
 // CollectForDuration collects GC metrics for a specific duration
 func CollectForDuration(ctx context.Context, duration time.Duration, interval time.Duration) ([]*types.GCMetrics, error) {
 	if interval == 0 {
@@ -324,6 +345,36 @@ func CollectForDuration(ctx context.Context, duration time.Duration, interval ti
 	}
 
 	// Wait for the duration
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		collector.Stop()
+		return nil, ctx.Err()
+	case <-timer.C:
+		collector.Stop()
+		return collector.GetMetrics(), nil
+	}
+}
+
+// CollectForDurationLite collects lightweight GC metrics for a specific duration
+func CollectForDurationLite(ctx context.Context, duration time.Duration, interval time.Duration) ([]*types.GCMetrics, error) {
+	if interval == 0 {
+		interval = types.DefaultCollectionInterval
+	}
+
+	estimatedSamples := int(duration/interval) + 10
+	collector := New(&Config{
+		Interval:       interval,
+		MaxSamples:     estimatedSamples,
+		UseLiteMetrics: true,
+	})
+
+	if err := collector.Start(ctx); err != nil {
+		return nil, err
+	}
+
 	timer := time.NewTimer(duration)
 	defer timer.Stop()
 

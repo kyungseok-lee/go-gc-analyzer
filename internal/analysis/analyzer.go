@@ -1,11 +1,35 @@
 package analysis
 
 import (
+	"cmp"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/kyungseok-lee/go-gc-analyzer/pkg/types"
 )
+
+// durationSlicePool provides reusable duration slices to reduce allocations
+var durationSlicePool = sync.Pool{
+	New: func() any {
+		// Pre-allocate with reasonable capacity
+		s := make([]time.Duration, 0, 256)
+		return &s
+	},
+}
+
+func getDurationSlice() *[]time.Duration {
+	s := durationSlicePool.Get().(*[]time.Duration)
+	*s = (*s)[:0]
+	return s
+}
+
+func putDurationSlice(s *[]time.Duration) {
+	if cap(*s) > 4096 { // Don't pool very large slices
+		return
+	}
+	durationSlicePool.Put(s)
+}
 
 // Analyzer provides GC performance analysis capabilities.
 // It analyzes GC metrics and events to provide insights into GC behavior
@@ -99,24 +123,27 @@ func (a *Analyzer) analyzePauseTimes(analysis *types.GCAnalysis) {
 	}
 
 	n := len(a.events)
-	durations := make([]time.Duration, n)
-	var total time.Duration
 
+	// Use pooled slice to reduce allocations
+	durationsPtr := getDurationSlice()
+	defer putDurationSlice(durationsPtr)
+	durations := *durationsPtr
+
+	// Ensure capacity
+	if cap(durations) < n {
+		durations = make([]time.Duration, n)
+	} else {
+		durations = durations[:n]
+	}
+
+	var total time.Duration
 	for i, event := range a.events {
 		durations[i] = event.Duration
 		total += event.Duration
 	}
 
-	// Use slices.SortFunc for better performance (Go 1.21+)
-	slices.SortFunc(durations, func(a, b time.Duration) int {
-		if a < b {
-			return -1
-		}
-		if a > b {
-			return 1
-		}
-		return 0
-	})
+	// Use cmp.Compare for cleaner sorting (Go 1.21+)
+	slices.SortFunc(durations, cmp.Compare)
 
 	analysis.AvgPauseTime = total / time.Duration(n)
 	analysis.MinPauseTime = durations[0]
@@ -157,9 +184,30 @@ func (a *Analyzer) analyzePauseTimesFromMetrics(analysis *types.GCAnalysis) {
 		analysis.AvgPauseTime = totalPauseTime / time.Duration(totalGCs)
 	}
 
-	// Find min/max from recent pause data
-	// Pre-allocate with conservative estimate (256 is the size of PauseNs ring buffer)
-	pauses := make([]time.Duration, 0, min(len(a.metrics)*256, 4096))
+	// Count total non-zero pauses first for accurate capacity
+	pauseCount := 0
+	for _, metrics := range a.metrics {
+		for _, pauseNs := range metrics.PauseNs {
+			if pauseNs > 0 {
+				pauseCount++
+			}
+		}
+	}
+
+	if pauseCount == 0 {
+		return
+	}
+
+	// Use pooled slice
+	pausesPtr := getDurationSlice()
+	defer putDurationSlice(pausesPtr)
+	pauses := *pausesPtr
+
+	// Ensure capacity
+	if cap(pauses) < pauseCount {
+		pauses = make([]time.Duration, 0, pauseCount)
+	}
+
 	for _, metrics := range a.metrics {
 		for _, pauseNs := range metrics.PauseNs {
 			if pauseNs > 0 {
@@ -169,16 +217,8 @@ func (a *Analyzer) analyzePauseTimesFromMetrics(analysis *types.GCAnalysis) {
 	}
 
 	if len(pauses) > 0 {
-		// Use slices.SortFunc for better performance (Go 1.21+)
-		slices.SortFunc(pauses, func(a, b time.Duration) int {
-			if a < b {
-				return -1
-			}
-			if a > b {
-				return 1
-			}
-			return 0
-		})
+		// Use cmp.Compare for cleaner sorting
+		slices.SortFunc(pauses, cmp.Compare)
 
 		n := len(pauses)
 		analysis.MinPauseTime = pauses[0]
@@ -374,6 +414,7 @@ func (a *Analyzer) calculateRecentGrowthTrend() float64 {
 
 // GetPauseTimeDistribution returns pause time distribution data
 func (a *Analyzer) GetPauseTimeDistribution() map[string]int {
+	// Use pre-defined buckets for zero allocation
 	distribution := map[string]int{
 		"0-1ms":    0,
 		"1-5ms":    0,
@@ -427,4 +468,29 @@ func (a *Analyzer) GetMemoryTrend() []types.MemoryPoint {
 	}
 
 	return points
+}
+
+// AnalysisStats provides statistics about the analysis operation itself
+type AnalysisStats struct {
+	MetricCount   int
+	EventCount    int
+	PeriodSeconds float64
+	GCCount       uint32
+}
+
+// GetAnalysisStats returns statistics about the data being analyzed
+func (a *Analyzer) GetAnalysisStats() AnalysisStats {
+	stats := AnalysisStats{
+		MetricCount: len(a.metrics),
+		EventCount:  len(a.events),
+	}
+
+	if len(a.metrics) >= 2 {
+		first := a.metrics[0]
+		last := a.metrics[len(a.metrics)-1]
+		stats.PeriodSeconds = last.Timestamp.Sub(first.Timestamp).Seconds()
+		stats.GCCount = last.NumGC - first.NumGC
+	}
+
+	return stats
 }

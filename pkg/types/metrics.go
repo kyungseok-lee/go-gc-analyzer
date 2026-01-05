@@ -2,8 +2,18 @@ package types
 
 import (
 	"runtime"
+	"sync"
 	"time"
 )
+
+// pauseSlicePool provides reusable pause time slice storage to reduce allocations.
+// The runtime.MemStats PauseNs/PauseEnd arrays are always 256 elements.
+var pauseSlicePool = sync.Pool{
+	New: func() any {
+		// Pre-allocate slice with exact capacity needed
+		return make([]uint64, 256)
+	},
+}
 
 // GCMetrics represents comprehensive garbage collection metrics
 type GCMetrics struct {
@@ -40,6 +50,9 @@ type GCMetrics struct {
 
 	// Collection timestamp
 	Timestamp time.Time `json:"timestamp"`
+
+	// pooled indicates whether this metrics uses pooled slices
+	pooled bool
 }
 
 // GCAnalysis represents analyzed GC performance data
@@ -109,6 +122,7 @@ type HealthCheckStatus struct {
 }
 
 // NewGCMetrics creates a new GCMetrics from runtime.MemStats
+// This is the standard constructor that owns its pause slices.
 func NewGCMetrics() *GCMetrics {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
@@ -143,6 +157,105 @@ func NewGCMetrics() *GCMetrics {
 		NextGC:        m.NextGC,
 		GCCPUFraction: m.GCCPUFraction,
 		Timestamp:     time.Now(),
+		pooled:        false,
+	}
+}
+
+// NewGCMetricsPooled creates a new GCMetrics using pooled slices.
+// IMPORTANT: Call Release() when done to return slices to the pool.
+// This is useful for high-frequency collection where allocation overhead matters.
+func NewGCMetricsPooled() *GCMetrics {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	// Get slices from pool
+	pauseNs := pauseSlicePool.Get().([]uint64)
+	pauseEnd := pauseSlicePool.Get().([]uint64)
+
+	// Copy data
+	copy(pauseNs, m.PauseNs[:])
+	copy(pauseEnd, m.PauseEnd[:])
+
+	return &GCMetrics{
+		NumGC:         m.NumGC,
+		PauseTotalNs:  m.PauseTotalNs,
+		PauseNs:       pauseNs,
+		PauseEnd:      pauseEnd,
+		LastGC:        time.Unix(0, int64(m.LastGC)),
+		Alloc:         m.Alloc,
+		TotalAlloc:    m.TotalAlloc,
+		Sys:           m.Sys,
+		Lookups:       m.Lookups,
+		Mallocs:       m.Mallocs,
+		Frees:         m.Frees,
+		HeapAlloc:     m.HeapAlloc,
+		HeapSys:       m.HeapSys,
+		HeapIdle:      m.HeapIdle,
+		HeapInuse:     m.HeapInuse,
+		HeapReleased:  m.HeapReleased,
+		HeapObjects:   m.HeapObjects,
+		StackInuse:    m.StackInuse,
+		StackSys:      m.StackSys,
+		NextGC:        m.NextGC,
+		GCCPUFraction: m.GCCPUFraction,
+		Timestamp:     time.Now(),
+		pooled:        true,
+	}
+}
+
+// Release returns pooled slices back to the pool.
+// No-op if metrics was not created with NewGCMetricsPooled.
+func (m *GCMetrics) Release() {
+	if !m.pooled {
+		return
+	}
+
+	if m.PauseNs != nil {
+		// Clear slice before returning to pool
+		clear(m.PauseNs)
+		pauseSlicePool.Put(m.PauseNs)
+		m.PauseNs = nil
+	}
+
+	if m.PauseEnd != nil {
+		clear(m.PauseEnd)
+		pauseSlicePool.Put(m.PauseEnd)
+		m.PauseEnd = nil
+	}
+
+	m.pooled = false
+}
+
+// NewGCMetricsLite creates a GCMetrics without pause slice data.
+// Use this when detailed pause timing is not needed (saves ~4KB allocation).
+func NewGCMetricsLite() *GCMetrics {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	return &GCMetrics{
+		NumGC:         m.NumGC,
+		PauseTotalNs:  m.PauseTotalNs,
+		PauseNs:       nil, // Skip pause data
+		PauseEnd:      nil,
+		LastGC:        time.Unix(0, int64(m.LastGC)),
+		Alloc:         m.Alloc,
+		TotalAlloc:    m.TotalAlloc,
+		Sys:           m.Sys,
+		Lookups:       m.Lookups,
+		Mallocs:       m.Mallocs,
+		Frees:         m.Frees,
+		HeapAlloc:     m.HeapAlloc,
+		HeapSys:       m.HeapSys,
+		HeapIdle:      m.HeapIdle,
+		HeapInuse:     m.HeapInuse,
+		HeapReleased:  m.HeapReleased,
+		HeapObjects:   m.HeapObjects,
+		StackInuse:    m.StackInuse,
+		StackSys:      m.StackSys,
+		NextGC:        m.NextGC,
+		GCCPUFraction: m.GCCPUFraction,
+		Timestamp:     time.Now(),
+		pooled:        false,
 	}
 }
 
@@ -155,4 +268,26 @@ func (m *GCMetrics) ToBytes(size uint64) string {
 // ToDuration converts nanoseconds to human-readable duration
 func (m *GCMetrics) ToDuration(ns uint64) time.Duration {
 	return time.Duration(ns) * time.Nanosecond
+}
+
+// Clone creates a deep copy of GCMetrics
+func (m *GCMetrics) Clone() *GCMetrics {
+	if m == nil {
+		return nil
+	}
+
+	clone := *m
+	clone.pooled = false // Clone always owns its slices
+
+	if len(m.PauseNs) > 0 {
+		clone.PauseNs = make([]uint64, len(m.PauseNs))
+		copy(clone.PauseNs, m.PauseNs)
+	}
+
+	if len(m.PauseEnd) > 0 {
+		clone.PauseEnd = make([]uint64, len(m.PauseEnd))
+		copy(clone.PauseEnd, m.PauseEnd)
+	}
+
+	return &clone
 }
