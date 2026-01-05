@@ -114,11 +114,18 @@ func NewGCMetrics() *GCMetrics {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
+	// Create new slices and copy data to avoid sharing memory
+	pauseNs := make([]uint64, len(m.PauseNs))
+	copy(pauseNs, m.PauseNs[:])
+
+	pauseEnd := make([]uint64, len(m.PauseEnd))
+	copy(pauseEnd, m.PauseEnd[:])
+
 	return &GCMetrics{
 		NumGC:         m.NumGC,
 		PauseTotalNs:  m.PauseTotalNs,
-		PauseNs:       make([]uint64, len(m.PauseNs)),
-		PauseEnd:      make([]uint64, len(m.PauseEnd)),
+		PauseNs:       pauseNs,
+		PauseEnd:      pauseEnd,
 		LastGC:        time.Unix(0, int64(m.LastGC)),
 		Alloc:         m.Alloc,
 		TotalAlloc:    m.TotalAlloc,

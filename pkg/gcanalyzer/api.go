@@ -46,6 +46,16 @@ import (
 	"github.com/kyungseok-lee/go-gc-analyzer/pkg/types"
 )
 
+// Alert threshold constants
+const (
+	// GC CPU fraction thresholds
+	AlertGCCPUFractionThreshold = 0.25 // 25%
+
+	// Pause time thresholds
+	AlertWarningPauseThreshold  = 100 * time.Millisecond
+	AlertCriticalPauseThreshold = 500 * time.Millisecond
+)
+
 // Re-export commonly used types for convenience
 type (
 	GCMetrics         = types.GCMetrics
@@ -238,13 +248,13 @@ func (m *Monitor) checkAlerts(metric *GCMetrics, event *GCEvent) {
 	// Check metric-based alerts
 	if metric != nil {
 		// High GC CPU fraction alert
-		if metric.GCCPUFraction > 0.25 { // 25%
+		if metric.GCCPUFraction > AlertGCCPUFractionThreshold {
 			alert := &Alert{
 				Type:      "overhead",
 				Severity:  "warning",
 				Message:   "High GC CPU overhead detected",
 				Value:     metric.GCCPUFraction * 100,
-				Threshold: 25.0,
+				Threshold: AlertGCCPUFractionThreshold * 100,
 				Metric:    metric,
 				Timestamp: time.Now(),
 			}
@@ -259,9 +269,9 @@ func (m *Monitor) checkAlerts(metric *GCMetrics, event *GCEvent) {
 	// Check event-based alerts
 	if event != nil {
 		// Long pause time alert
-		if event.Duration > 100*time.Millisecond {
+		if event.Duration > AlertWarningPauseThreshold {
 			severity := "warning"
-			if event.Duration > 500*time.Millisecond {
+			if event.Duration > AlertCriticalPauseThreshold {
 				severity = "critical"
 			}
 
@@ -270,7 +280,7 @@ func (m *Monitor) checkAlerts(metric *GCMetrics, event *GCEvent) {
 				Severity:  severity,
 				Message:   "Long GC pause time detected",
 				Value:     float64(event.Duration.Nanoseconds()) / 1e6, // ms
-				Threshold: 100.0,                                       // ms
+				Threshold: float64(AlertWarningPauseThreshold.Milliseconds()),
 				Event:     event,
 				Timestamp: time.Now(),
 			}

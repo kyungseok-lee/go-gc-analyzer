@@ -7,6 +7,30 @@ import (
 	"github.com/kyungseok-lee/go-gc-analyzer/pkg/types"
 )
 
+// Threshold constants for GC performance analysis
+const (
+	// GC frequency thresholds
+	HighGCFrequencyThreshold = 10.0 // GCs per second
+
+	// Pause time thresholds
+	LongAvgPauseTimeThreshold  = 100 * time.Millisecond
+	VeryLongP99PauseThreshold  = 500 * time.Millisecond
+
+	// Memory thresholds
+	HighHeapGrowthRateThreshold = 10 * 1024 * 1024 // 10 MB/s
+
+	// Efficiency thresholds
+	HighGCOverheadThreshold      = 25.0 // percentage
+	LowMemoryEfficiencyThreshold = 50.0 // percentage
+
+	// Allocation thresholds
+	HighAllocationRateThreshold = 100 * 1024 * 1024 // 100 MB/s
+
+	// Growth trend thresholds
+	ConsistentGrowthThreshold = 0.1 // 10% consistent growth
+	MinSamplesForTrendAnalysis = 10
+)
+
 // Analyzer provides GC performance analysis capabilities
 type Analyzer struct {
 	metrics []*types.GCMetrics
@@ -89,10 +113,6 @@ func (a *Analyzer) analyzePauseTimes(analysis *types.GCAnalysis) {
 	if len(a.events) == 0 {
 		// Fallback to analyzing pause data from metrics
 		a.analyzePauseTimesFromMetrics(analysis)
-		return
-	}
-
-	if len(a.events) == 0 {
 		return
 	}
 
@@ -272,50 +292,50 @@ func (a *Analyzer) generateRecommendations(analysis *types.GCAnalysis) {
 	recommendations := make([]string, 0)
 
 	// High GC frequency recommendations
-	if analysis.GCFrequency > 10 { // More than 10 GCs per second
+	if analysis.GCFrequency > HighGCFrequencyThreshold {
 		recommendations = append(recommendations,
 			"High GC frequency detected. Consider reducing allocation rate or increasing GOGC value.")
 	}
 
 	// Long pause time recommendations
-	if analysis.AvgPauseTime > 100*time.Millisecond {
+	if analysis.AvgPauseTime > LongAvgPauseTimeThreshold {
 		recommendations = append(recommendations,
 			"Long GC pause times detected. Consider reducing heap size or optimizing allocation patterns.")
 	}
 
-	if analysis.P99PauseTime > 500*time.Millisecond {
+	if analysis.P99PauseTime > VeryLongP99PauseThreshold {
 		recommendations = append(recommendations,
 			"Very long P99 pause times detected. This may impact application responsiveness.")
 	}
 
 	// Memory growth recommendations
-	if analysis.HeapGrowthRate > 1024*1024*10 { // 10MB/s growth
+	if analysis.HeapGrowthRate > HighHeapGrowthRateThreshold {
 		recommendations = append(recommendations,
 			"High heap growth rate detected. Check for memory leaks or excessive allocations.")
 	}
 
 	// High GC overhead recommendations
-	if analysis.GCOverhead > 25 { // More than 25% CPU time in GC
+	if analysis.GCOverhead > HighGCOverheadThreshold {
 		recommendations = append(recommendations,
 			"High GC overhead detected. Consider optimizing allocation patterns or tuning GC parameters.")
 	}
 
 	// Low memory efficiency recommendations
-	if analysis.MemoryEfficiency < 50 { // Less than 50% memory efficiency
+	if analysis.MemoryEfficiency < LowMemoryEfficiencyThreshold {
 		recommendations = append(recommendations,
 			"Low memory efficiency detected. Consider reducing heap fragmentation or optimizing data structures.")
 	}
 
 	// Allocation rate recommendations
-	if analysis.AllocRate > 1024*1024*100 { // 100MB/s allocation rate
+	if analysis.AllocRate > HighAllocationRateThreshold {
 		recommendations = append(recommendations,
 			"High allocation rate detected. Consider object pooling or reducing temporary object creation.")
 	}
 
 	// Memory leak detection
-	if len(a.metrics) >= 10 {
+	if len(a.metrics) >= MinSamplesForTrendAnalysis {
 		recentGrowth := a.calculateRecentGrowthTrend()
-		if recentGrowth > 0.1 { // 10% consistent growth
+		if recentGrowth > ConsistentGrowthThreshold {
 			recommendations = append(recommendations,
 				"Consistent memory growth detected. Investigate potential memory leaks.")
 		}
@@ -326,12 +346,12 @@ func (a *Analyzer) generateRecommendations(analysis *types.GCAnalysis) {
 
 // calculateRecentGrowthTrend calculates the recent memory growth trend
 func (a *Analyzer) calculateRecentGrowthTrend() float64 {
-	if len(a.metrics) < 10 {
+	if len(a.metrics) < MinSamplesForTrendAnalysis {
 		return 0
 	}
 
-	// Look at the last 10 samples to detect trend
-	recent := a.metrics[len(a.metrics)-10:]
+	// Look at the last MinSamplesForTrendAnalysis samples to detect trend
+	recent := a.metrics[len(a.metrics)-MinSamplesForTrendAnalysis:]
 
 	var totalGrowth float64
 	growthPoints := 0
