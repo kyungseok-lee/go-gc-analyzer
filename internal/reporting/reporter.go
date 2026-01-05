@@ -252,8 +252,8 @@ func (r *Reporter) GenerateJSONReportWithOptions(w io.Writer, opts JSONReportOpt
 			Analysis *types.GCAnalysis  `json:"analysis"`
 			Metrics  []*types.GCMetrics `json:"metrics,omitempty"`
 			Events   []*types.GCEvent   `json:"events,omitempty"`
-	}{
-		Analysis: r.analysis,
+		}{
+			Analysis: r.analysis,
 			Metrics:  metrics,
 			Events:   events,
 		}
