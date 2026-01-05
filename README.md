@@ -1,36 +1,33 @@
 # Go GC Analyzer
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/kyungseok-lee/go-gc-analyzer)](https://goreportcard.com/report/github.com/kyungseok-lee/go-gc-analyzer)
-[![GoDoc](https://godoc.org/github.com/kyungseok-lee/go-gc-analyzer?status.svg)](https://godoc.org/github.com/kyungseok-lee/go-gc-analyzer)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Go Version](https://img.shields.io/badge/Go-1.21+-blue.svg)](https://golang.org/dl/)
+A comprehensive Go Garbage Collection performance analyzer for monitoring, analyzing, and optimizing GC behavior.
 
-A comprehensive Go library for analyzing and monitoring garbage collection (GC) performance in Go applications. This library provides detailed insights into GC behavior, memory usage patterns, and performance metrics to help optimize your Go applications.
+## Overview
 
-## 🚀 Features
+This library provides tools to:
 
-- **Real-time GC Monitoring**: Continuous collection of GC metrics with configurable intervals and alerting
-- **Comprehensive Analysis**: Detailed analysis of GC frequency, pause times, memory usage, and allocation patterns
-- **Multiple Report Formats**: Generate reports in text, JSON, Prometheus, and summary formats
-- **Health Monitoring**: Built-in health checks with configurable alert thresholds and scoring
-- **Memory Trend Analysis**: Track memory usage patterns over time with detailed trend data
-- **Pause Time Distribution**: Analyze GC pause time distributions and percentiles from GC events
-- **Performance Recommendations**: Automated suggestions for GC performance optimization
-- **Simple API**: Clean and intuitive API with single import path (`pkg/gcanalyzer`)
-- **Modular Architecture**: Well-structured internal packages with clean separation of concerns
-- **Zero Dependencies**: Pure Go implementation with no external dependencies
-- **High Performance**: Optimized with minimal allocations, efficient sorting (using `slices` package), and graceful shutdown support
-- **Thread-Safe**: All monitoring operations are safe for concurrent use
+- **Monitor** GC metrics in real-time with configurable callbacks
+- **Analyze** GC performance patterns and identify bottlenecks
+- **Report** findings in multiple formats (text, JSON, Prometheus)
+- **Recommend** optimizations based on collected data
 
-## 📦 Installation
+## Features
+
+- 📊 Real-time GC metrics collection
+- 📈 Comprehensive GC analysis with pause time percentiles (P95/P99)
+- 🔔 Alert callbacks for performance issues
+- 📝 Multiple report formats (text, JSON, summary, Prometheus)
+- 🏥 Health check scoring system
+- 🔄 Memory trend analysis
+- 💡 Automatic optimization recommendations
+
+## Installation
 
 ```bash
 go get github.com/kyungseok-lee/go-gc-analyzer
 ```
 
-**Requirements**: Go 1.21 or later (uses `slices` package for optimized sorting)
-
-## 🏃‍♂️ Quick Start
+## Quick Start
 
 ### Basic Usage
 
@@ -44,412 +41,361 @@ import (
     "time"
     
     "github.com/kyungseok-lee/go-gc-analyzer/pkg/gcanalyzer"
-    "github.com/kyungseok-lee/go-gc-analyzer/pkg/types"
 )
 
 func main() {
-    // Collect GC metrics for 10 seconds
     ctx := context.Background()
+
+    // Collect metrics for 10 seconds
     metrics, err := gcanalyzer.CollectForDuration(ctx, 10*time.Second, time.Second)
     if err != nil {
         panic(err)
     }
     
-    // Analyze the collected metrics
+    // Analyze collected data
     analysis, err := gcanalyzer.Analyze(metrics)
     if err != nil {
         panic(err)
     }
     
-    // Print analysis results
-    fmt.Printf("GC Frequency: %.2f GCs/second\n", analysis.GCFrequency)
-    fmt.Printf("Average Pause Time: %v\n", analysis.AvgPauseTime)
-    fmt.Printf("Average Heap Size: %s\n", types.FormatBytes(analysis.AvgHeapSize))
-    fmt.Printf("Allocation Rate: %s\n", types.FormatBytesRate(analysis.AllocRate))
-    fmt.Printf("GC Overhead: %.2f%%\n", analysis.GCOverhead)
-    
-    // Generate a report
+    // Generate report
     gcanalyzer.GenerateSummaryReport(analysis, os.Stdout)
+
+    // Get health status
+    health := gcanalyzer.GenerateHealthCheck(analysis)
+    fmt.Printf("GC Health Score: %d/100 (%s)\n", health.Score, health.Status)
 }
 ```
 
-### Continuous Monitoring
+### Continuous Monitoring with Alerts
 
 ```go
-package main
-
-import (
-    "context"
-    "fmt"
-    "log"
-    "time"
-    
-    "github.com/kyungseok-lee/go-gc-analyzer/pkg/gcanalyzer"
-)
-
-func main() {
-    config := &gcanalyzer.MonitorConfig{
+monitor := gcanalyzer.NewMonitor(&gcanalyzer.MonitorConfig{
         Interval:   time.Second,
-        MaxSamples: 300, // Keep 5 minutes of data
+    MaxSamples: 1000,
+    OnAlert: func(alert *gcanalyzer.Alert) {
+        log.Printf("[%s] %s: %s", alert.Severity, alert.Type, alert.Message)
+    },
         OnMetric: func(m *gcanalyzer.GCMetrics) {
-            if m.GCCPUFraction > 0.1 {
-                log.Printf("High GC CPU usage: %.2f%%", m.GCCPUFraction*100)
-            }
-        },
-        OnGCEvent: func(e *gcanalyzer.GCEvent) {
-            if e.Duration > 10*time.Millisecond {
-                log.Printf("Long GC pause: %v", e.Duration)
-            }
-        },
-    }
-    
-    monitor := gcanalyzer.NewMonitor(config)
-    
-    ctx := context.Background()
-    err := monitor.Start(ctx)
-    if err != nil {
-        panic(err)
-    }
-    
-    // Let it run for a while
-    time.Sleep(1 * time.Minute)
-    
-    monitor.Stop()
-    
-    // Analyze collected data
-    metrics := monitor.GetMetrics()
-    if len(metrics) >= 2 {
-        analysis, _ := gcanalyzer.Analyze(metrics)
-        
-        fmt.Printf("Analysis complete: %d recommendations\n", len(analysis.Recommendations))
-        for _, rec := range analysis.Recommendations {
-            fmt.Printf("- %s\n", rec)
-        }
-    }
-}
+        log.Printf("Heap: %s, GC#: %d", 
+            types.FormatBytes(m.HeapAlloc), m.NumGC)
+    },
+})
+
+ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+defer cancel()
+
+monitor.Start(ctx)
+defer monitor.Stop()
+
+// Your application logic here...
 ```
 
-## 📊 Monitoring Server
+## API Reference
 
-The library includes a ready-to-use monitoring example:
+### Core Functions
 
-```bash
-go run examples/monitoring/main.go
-```
+| Function | Description |
+|----------|-------------|
+| `CollectOnce()` | Collect a single GC metrics snapshot |
+| `CollectForDuration(ctx, duration, interval)` | Collect metrics over a time period |
+| `Analyze(metrics)` | Perform comprehensive GC analysis |
+| `AnalyzeWithEvents(metrics, events)` | Analyze with detailed event data |
+| `GenerateTextReport(analysis, w)` | Generate detailed text report |
+| `GenerateJSONReport(analysis, w, indent)` | Generate JSON report |
+| `GenerateSummaryReport(analysis, w)` | Generate concise summary |
+| `GenerateHealthCheck(analysis)` | Generate health check status |
 
-This starts a monitoring service with real-time alerting and periodic analysis.
-
-## 📖 API Documentation
-
-### Core Types
-
-#### GCMetrics
-Represents a snapshot of GC metrics at a specific point in time.
+### Metrics Types
 
 ```go
+// GCMetrics - comprehensive GC statistics
 type GCMetrics struct {
-    NumGC          uint32        // Number of GCs
-    PauseTotalNs   uint64        // Total pause time in nanoseconds
-    HeapAlloc      uint64        // Current heap allocation
-    TotalAlloc     uint64        // Total bytes allocated
-    Sys            uint64        // Total bytes from OS
-    GCCPUFraction  float64       // Fraction of CPU time in GC
-    Timestamp      time.Time     // Collection timestamp
+    NumGC         uint32    // Total GC cycles
+    PauseTotalNs  uint64    // Total pause time
+    HeapAlloc     uint64    // Allocated heap bytes
+    HeapSys       uint64    // System heap bytes
+    GCCPUFraction float64   // GC CPU usage fraction
     // ... more fields
 }
-```
 
-#### GCAnalysis
-Contains comprehensive analysis results.
-
-```go
+// GCAnalysis - analyzed results
 type GCAnalysis struct {
-    Period           time.Duration  // Analysis period
-    GCFrequency      float64        // GCs per second
-    AvgPauseTime     time.Duration  // Average pause time
-    P95PauseTime     time.Duration  // 95th percentile pause time
-    P99PauseTime     time.Duration  // 99th percentile pause time
-    AvgHeapSize      uint64         // Average heap size
-    AllocRate        float64        // Allocation rate (bytes/second)
-    GCOverhead       float64        // GC CPU overhead percentage
-    MemoryEfficiency float64        // Memory efficiency percentage
-    Recommendations  []string       // Performance recommendations
-    // ... more fields
+    GCFrequency   float64       // GCs per second
+    AvgPauseTime  time.Duration // Average pause time
+    P95PauseTime  time.Duration // 95th percentile pause
+    P99PauseTime  time.Duration // 99th percentile pause
+    AllocRate     float64       // Bytes allocated per second
+    GCOverhead    float64       // GC CPU percentage
+    Recommendations []string    // Optimization suggestions
 }
 ```
-
-### Main Functions
-
-#### Collection Functions
-
-```go
-// Collect a single snapshot
-func CollectOnce() *GCMetrics
-
-// Collect for a specific duration
-func CollectForDuration(ctx context.Context, duration, interval time.Duration) ([]*GCMetrics, error)
-```
-
-#### Analysis Functions
-
-```go
-// Perform analysis on metrics
-func Analyze(metrics []*GCMetrics) (*GCAnalysis, error)
-
-// Perform analysis with both metrics and events
-func AnalyzeWithEvents(metrics []*GCMetrics, events []*GCEvent) (*GCAnalysis, error)
-
-// Get memory trend data
-func GetMemoryTrend(metrics []*GCMetrics) []MemoryPoint
-
-// Get pause time distribution
-func GetPauseTimeDistribution(events []*GCEvent) map[string]int
-```
-
-#### Reporting Functions
-
-```go
-// Generate various report formats
-func GenerateTextReport(analysis *GCAnalysis, metrics []*GCMetrics, events []*GCEvent, w io.Writer) error
-func GenerateJSONReport(analysis *GCAnalysis, metrics []*GCMetrics, events []*GCEvent, w io.Writer, indent bool) error
-func GenerateSummaryReport(analysis *GCAnalysis, w io.Writer) error
-
-// Generate health check
-func GenerateHealthCheck(analysis *GCAnalysis) *HealthCheckStatus
-```
-
-#### Utility Functions (types package)
-
-```go
-// Format bytes into human-readable format (KB, MB, GB, etc.)
-func FormatBytes(bytes uint64) string
-
-// Format bytes per second into human-readable format
-func FormatBytesRate(bytesPerSecond float64) string
-```
-
-## 🔧 Configuration
-
-### Monitor Configuration
-
-```go
-type MonitorConfig struct {
-    // Collection interval (default: 1 second)
-    Interval time.Duration
-    
-    // Maximum samples to keep in memory (default: 1000)
-    MaxSamples int
-    
-    // Alert callback function
-    OnAlert func(*Alert)
-    
-    // Metric collection callback
-    OnMetric func(*GCMetrics)
-    
-    // GC event callback
-    OnGCEvent func(*GCEvent)
-}
-```
-
-### Threshold Constants (types package)
-
-The library provides configurable threshold constants for analysis and health checks:
-
-```go
-const (
-    ThresholdGCFrequencyHigh     = 10.0                  // GCs per second
-    ThresholdAvgPauseLong        = 100 * time.Millisecond
-    ThresholdP99PauseVeryLong    = 500 * time.Millisecond
-    ThresholdGCOverheadHigh      = 25.0                  // percentage
-    ThresholdMemoryEfficiencyLow = 50.0                  // percentage
-    ThresholdAllocationRateHigh  = 100 * 1024 * 1024     // 100 MB/s
-)
-```
-
-## 📈 Understanding the Metrics
-
-### GC Frequency
-- **Low (< 1 GC/s)**: Excellent, minimal GC pressure
-- **Medium (1-5 GC/s)**: Good, normal application behavior
-- **High (> 5 GC/s)**: Consider optimization, reduce allocation rate
-
-### Pause Times
-- **Excellent (< 1ms)**: Low-latency applications
-- **Good (1-10ms)**: Most applications
-- **Needs attention (> 10ms)**: May impact responsiveness
-- **Critical (> 100ms)**: Immediate optimization needed
-
-### GC Overhead
-- **Excellent (< 5%)**: Minimal GC impact
-- **Good (5-15%)**: Acceptable for most applications
-- **High (15-25%)**: Consider tuning
-- **Critical (> 25%)**: Significant performance impact
-
-### Memory Efficiency
-- **Excellent (> 80%)**: Efficient memory usage
-- **Good (60-80%)**: Normal usage
-- **Poor (< 60%)**: Memory fragmentation or inefficient allocation patterns
-
-## 🎯 Performance Optimization Tips
-
-Based on the analysis results, here are common optimization strategies:
-
-### High GC Frequency
-- Reduce allocation rate by reusing objects
-- Use object pools for frequently allocated objects
-- Increase `GOGC` value to trigger GC less frequently
-- Optimize data structures to reduce pointer indirection
-
-### Long Pause Times
-- Reduce heap size if possible
-- Minimize large object allocations
-- Use streaming processing instead of batching
-- Consider concurrent GC tuning (Go 1.19+)
-
-### High GC Overhead
-- Profile allocation hotspots with `go tool pprof`
-- Implement object pooling
-- Use value types instead of pointer types where possible
-- Optimize slice and map usage patterns
-
-### Memory Leaks
-- Check for goroutine leaks
-- Ensure proper cleanup of resources
-- Use weak references where appropriate
-- Monitor memory growth trends over time
-
-## 🏷️ Examples
-
-The library includes comprehensive examples:
-
-- **[Basic Usage](examples/basic/main.go)**: Simple collection and analysis
-- **[Advanced Features](examples/advanced/main.go)**: Workload analysis, performance comparison
-- **[Monitoring Service](examples/monitoring/main.go)**: Continuous monitoring with alerts
-
-Run examples:
-
-```bash
-# Basic example
-go run examples/basic/main.go
-
-# Advanced features
-go run examples/advanced/main.go
-
-# Monitoring service
-go run examples/monitoring/main.go
-```
-
-## 🧪 Testing
-
-Run the complete test suite:
-
-```bash
-# Run all tests
-go test ./...
-
-# Run with verbose output
-go test -v ./...
-
-# Run benchmarks
-go test -bench=. ./tests
-
-# Run with race detection
-go test -race ./...
-
-# Generate coverage report
-go test -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out
-```
-
-## 📊 Benchmarks
-
-The library is designed for minimal overhead (Apple M1 Pro):
-
-```
-BenchmarkCollectOnce-10                    42912     26028 ns/op    4336 B/op     3 allocs/op
-BenchmarkAnalyzer_Analyze-10             2212604       546 ns/op     752 B/op     3 allocs/op
-BenchmarkAnalyzer_GetMemoryTrend-10      1415532       828 ns/op    4864 B/op     1 allocs/op
-BenchmarkReporter_GenerateTextReport-10   404581      3003 ns/op    1985 B/op    41 allocs/op
-BenchmarkReporter_GenerateHealthCheck-10 12011064      112 ns/op     192 B/op     2 allocs/op
-```
-
-Performance characteristics:
-- **CollectOnce**: ~26μs per collection (includes runtime.ReadMemStats)
-- **Analysis**: ~546ns with optimized sorting using `slices.SortFunc`
-- **Reporting**: Fast generation with reduced allocations
-- **Health Check**: Sub-microsecond generation (~112ns)
-- **Memory overhead**: Minimal, configurable retention with graceful cleanup
-
-## 🔌 Integration
-
-### Prometheus/Grafana
-
-Export metrics in Prometheus format:
-
-```go
-reporter := reporting.New(analysis, metrics, nil)
-err := reporter.GenerateGrafanaMetrics(w)
-```
-
-### JSON APIs
-
-All data structures are JSON-serializable for easy integration:
-
-```go
-analysis, _ := gcanalyzer.Analyze(metrics)
-data, _ := json.Marshal(analysis)
-```
-
-### Health Checks
-
-Integrate with health check systems:
-
-```go
-healthCheck := gcanalyzer.GenerateHealthCheck(analysis)
-if healthCheck.Status != "healthy" {
-    // Alert or take action
-}
-```
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
-
-### Development Setup
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Add tests for your changes
-5. Run the test suite (`go test ./...`)
-6. Commit your changes (`git commit -am 'Add amazing feature'`)
-7. Push to the branch (`git push origin feature/amazing-feature`)
-8. Open a Pull Request
-
-### Guidelines
-
-- Write clear, self-documenting code
-- Add tests for new functionality
-- Update documentation as needed
-- Follow Go best practices and idioms
-- Ensure backward compatibility when possible
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- Go team for the excellent runtime metrics APIs
-- The Go community for inspiration and feedback
-- Contributors who help improve this library
-
-## 📞 Support
-
-- 📖 [Documentation](https://godoc.org/github.com/kyungseok-lee/go-gc-analyzer)
-- 🐛 [Issue Tracker](https://github.com/kyungseok-lee/go-gc-analyzer/issues)
-- 💬 [Discussions](https://github.com/kyungseok-lee/go-gc-analyzer/discussions)
 
 ---
 
-**Made with ❤️ for the Go community**
+## Performance Benchmarking & Profiling Guide
+
+### Running Benchmarks
+
+```bash
+# Run all benchmarks
+make bench
+
+# Quick benchmark (single run)
+make bench-short
+
+# Save baseline for comparison
+make bench-save
+
+# Compare current vs baseline
+make bench-compare
+```
+
+### Manual Benchmark Commands
+
+```bash
+# Full benchmark with 6 iterations
+go test -bench=. -benchmem -count=6 ./tests/... | tee bench.txt
+
+# Compare two benchmark files
+benchstat baseline.txt current.txt
+```
+
+### CPU Profiling
+
+```bash
+# Generate CPU profile
+make bench-cpu
+
+# View in browser
+make pprof-cpu
+# or manually:
+go tool pprof -http=:8080 profiles/cpu.prof
+```
+
+### Memory Profiling
+
+```bash
+# Generate memory profile
+make bench-mem
+
+# View in browser
+make pprof-mem
+# or manually:
+go tool pprof -http=:8080 profiles/mem.prof
+```
+
+### GC Tracing
+
+```bash
+# Enable GC tracing
+GODEBUG=gctrace=1 go run ./examples/advanced/main.go
+
+# Scheduler tracing
+GODEBUG=schedtrace=1000 go run ./examples/advanced/main.go
+
+# GC pacer tracing
+GODEBUG=gcpacertrace=1 go run ./examples/advanced/main.go
+```
+
+### Understanding gctrace Output
+
+```
+gc 1 @0.012s 2%: 0.015+0.89+0.003 ms clock, 0.12+0.45/0.67/0+0.024 ms cpu, 4->4->0 MB, 5 MB goal, 8 P
+```
+
+| Field | Meaning |
+|-------|---------|
+| `gc 1` | GC cycle number |
+| `@0.012s` | Time since program start |
+| `2%` | CPU time spent in GC |
+| `0.015+0.89+0.003 ms clock` | Wall clock: STW mark + concurrent + STW sweep |
+| `4->4->0 MB` | Heap before -> after -> live |
+| `5 MB goal` | Target heap size |
+| `8 P` | Number of processors used |
+
+---
+
+## Performance Optimization Results
+
+### Benchmark Comparison (Before → After)
+
+| Benchmark | Time | Memory | Allocations |
+|-----------|------|--------|-------------|
+| GenerateTextReport | **-44%** | - | **-71%** (41→12) |
+| MemoryUsage | **-20%** | - | **-67%** (45→15) |
+| Analyzer_Analyze | **-5%** | **-55%** | **-33%** |
+| AnalyzeSmallDataset | - | **-98%** | **-33%** |
+| RealWorldScenario | - | -2% | **-17%** |
+| **Overall (geomean)** | **-7.6%** | **-31%** | **-24%** |
+
+### Key Optimizations Applied
+
+1. **sync.Pool for Reusable Slices**
+   - Duration slices in analyzer
+   - strings.Builder in reporter
+   - Reduces GC pressure significantly
+
+2. **Pre-allocated Capacities**
+   - Recommendations slice: `make([]string, 0, 8)`
+   - Health check issues: `make([]string, 0, 6)`
+   - Avoids slice growth reallocations
+
+3. **strings.Builder over fmt.Sprintf**
+   - Text report generation optimized
+   - 71% fewer allocations
+
+4. **Lightweight Metrics Collection**
+   - `NewGCMetricsLite()` - skips pause data (~4KB savings)
+   - `NewGCMetricsPooled()` - reuses pause slices
+
+---
+
+## Runtime Tuning Guide
+
+### GOGC (GC Target Percentage)
+
+```bash
+# Default is 100 (GC when heap doubles)
+GOGC=100 ./myapp
+
+# More aggressive GC (lower latency, more CPU)
+GOGC=50 ./myapp
+
+# Less aggressive GC (lower CPU, higher memory)
+GOGC=200 ./myapp
+```
+
+### GOMEMLIMIT (Memory Limit)
+
+```bash
+# Set soft memory limit (Go 1.19+)
+GOMEMLIMIT=1GiB ./myapp
+```
+
+### Recommended Settings by Use Case
+
+| Use Case | GOGC | GOMEMLIMIT | Notes |
+|----------|------|------------|-------|
+| Low latency | 50-100 | Auto | More frequent, shorter GC |
+| High throughput | 200-400 | Set | Less GC overhead |
+| Memory constrained | 50 | Set limit | Prevent OOM |
+| Batch processing | 400+ | Set limit | Minimize GC interruptions |
+
+---
+
+## Project Structure
+
+```
+go-gc-analyzer/
+├── pkg/
+│   ├── gcanalyzer/    # Public API
+│   │   └── api.go
+│   └── types/         # Shared types
+│       ├── metrics.go
+│       ├── constants.go
+│       ├── errors.go
+│       └── format.go
+├── internal/
+│   ├── analysis/      # GC analysis logic
+│   ├── collector/     # Metrics collection
+│   └── reporting/     # Report generation
+├── examples/
+│   ├── basic/         # Simple usage example
+│   ├── advanced/      # Advanced features
+│   └── monitoring/    # Continuous monitoring
+├── tests/
+│   ├── analyzer_test.go
+│   ├── benchmark_test.go
+│   ├── collector_test.go
+│   └── integration_test.go
+├── benchmarks/        # Benchmark results
+├── profiles/          # Profiling outputs
+├── Makefile           # Build & dev commands
+└── README.md
+```
+
+---
+
+## Examples
+
+### Run Examples
+
+```bash
+# Basic example
+go run ./examples/basic/main.go
+
+# Advanced example
+go run ./examples/advanced/main.go
+
+# Monitoring example
+go run ./examples/monitoring/main.go
+```
+
+---
+
+## Development
+
+### Prerequisites
+
+- Go 1.23+
+- Make (optional, for convenience commands)
+
+### Setup
+
+```bash
+# Clone repository
+git clone https://github.com/kyungseok-lee/go-gc-analyzer.git
+cd go-gc-analyzer
+
+# Install dev tools
+make deps-tools
+
+# Run tests
+make test
+
+# Run benchmarks
+make bench
+```
+
+### Available Make Targets
+
+```bash
+make help        # Show all available commands
+make test        # Run tests
+make bench       # Run benchmarks
+make lint        # Run linters
+make fmt         # Format code
+make clean       # Clean artifacts
+```
+
+---
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing`)
+3. Run tests and benchmarks
+4. Commit your changes with proper message format:
+   - `perf:` for performance improvements
+   - `feat:` for new features
+   - `fix:` for bug fixes
+   - `docs:` for documentation
+   - `test:` for test additions
+5. Push to the branch
+6. Create a Pull Request with benchmark comparison
+
+---
+
+## License
+
+MIT License - see LICENSE file for details.
+
+---
+
+## References
+
+- [Go GC Guide](https://tip.golang.org/doc/gc-guide)
+- [runtime package documentation](https://pkg.go.dev/runtime)
+- [pprof documentation](https://pkg.go.dev/runtime/pprof)
+- [GODEBUG environment variable](https://pkg.go.dev/runtime#hdr-Environment_Variables)
