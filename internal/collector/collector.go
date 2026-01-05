@@ -117,7 +117,7 @@ func (c *Collector) GetEvents() []*types.GCEvent {
 	return result
 }
 
-// GetLatestMetrics returns the most recent metrics sample
+// GetLatestMetrics returns a copy of the most recent metrics sample
 func (c *Collector) GetLatestMetrics() *types.GCMetrics {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -126,7 +126,18 @@ func (c *Collector) GetLatestMetrics() *types.GCMetrics {
 		return nil
 	}
 
-	return c.metrics[len(c.metrics)-1]
+	// Return a copy to prevent race conditions
+	latest := c.metrics[len(c.metrics)-1]
+	metricsCopy := *latest
+
+	// Deep copy slices
+	metricsCopy.PauseNs = make([]uint64, len(latest.PauseNs))
+	copy(metricsCopy.PauseNs, latest.PauseNs)
+
+	metricsCopy.PauseEnd = make([]uint64, len(latest.PauseEnd))
+	copy(metricsCopy.PauseEnd, latest.PauseEnd)
+
+	return &metricsCopy
 }
 
 // Clear removes all collected metrics and events

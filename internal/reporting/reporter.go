@@ -10,6 +10,35 @@ import (
 	"github.com/kyungseok-lee/go-gc-analyzer/pkg/types"
 )
 
+// Health check threshold constants
+const (
+	// GC frequency thresholds
+	HealthCheckGCFrequencyThreshold = 10.0 // GCs per second
+
+	// Pause time thresholds
+	HealthCheckAvgPauseThreshold = 100 * time.Millisecond
+	HealthCheckP99PauseThreshold = 500 * time.Millisecond
+
+	// Efficiency thresholds
+	HealthCheckGCOverheadThreshold      = 25.0 // percentage
+	HealthCheckMemoryEfficiencyThreshold = 50.0 // percentage
+
+	// Allocation rate threshold
+	HealthCheckAllocationRateThreshold = 100 * 1024 * 1024 // 100 MB/s
+
+	// Health score thresholds
+	HealthScoreHealthy  = 80
+	HealthScoreWarning  = 60
+
+	// Health check penalties
+	PenaltyGCFrequency       = 15
+	PenaltyAvgPause          = 20
+	PenaltyP99Pause          = 10
+	PenaltyGCOverhead        = 25
+	PenaltyMemoryEfficiency  = 15
+	PenaltyAllocationRate    = 10
+)
+
 // Reporter provides various reporting formats for GC analysis
 type Reporter struct {
 	analysis *types.GCAnalysis
@@ -262,46 +291,46 @@ func (r *Reporter) GenerateHealthCheck() *types.HealthCheckStatus {
 		LastUpdated: time.Now(),
 	}
 
-	// Check GC frequency (penalty: -15 points)
-	if r.analysis.GCFrequency > 10 {
-		status.Score -= 15
+	// Check GC frequency
+	if r.analysis.GCFrequency > HealthCheckGCFrequencyThreshold {
+		status.Score -= PenaltyGCFrequency
 		status.Issues = append(status.Issues, "High GC frequency")
 	}
 
-	// Check pause times (penalty: -20 points for avg, -10 for P99)
-	if r.analysis.AvgPauseTime > 100*time.Millisecond {
-		status.Score -= 20
+	// Check pause times
+	if r.analysis.AvgPauseTime > HealthCheckAvgPauseThreshold {
+		status.Score -= PenaltyAvgPause
 		status.Issues = append(status.Issues, "Long average pause times")
 	}
-	if r.analysis.P99PauseTime > 500*time.Millisecond {
-		status.Score -= 10
+	if r.analysis.P99PauseTime > HealthCheckP99PauseThreshold {
+		status.Score -= PenaltyP99Pause
 		status.Issues = append(status.Issues, "Very long P99 pause times")
 	}
 
-	// Check GC overhead (penalty: -25 points)
-	if r.analysis.GCOverhead > 25 {
-		status.Score -= 25
+	// Check GC overhead
+	if r.analysis.GCOverhead > HealthCheckGCOverheadThreshold {
+		status.Score -= PenaltyGCOverhead
 		status.Issues = append(status.Issues, "High GC overhead")
 	}
 
-	// Check memory efficiency (penalty: -15 points)
-	if r.analysis.MemoryEfficiency < 50 {
-		status.Score -= 15
+	// Check memory efficiency
+	if r.analysis.MemoryEfficiency < HealthCheckMemoryEfficiencyThreshold {
+		status.Score -= PenaltyMemoryEfficiency
 		status.Issues = append(status.Issues, "Low memory efficiency")
 	}
 
-	// Check allocation rate (penalty: -10 points)
-	if r.analysis.AllocRate > 1024*1024*100 { // 100MB/s
-		status.Score -= 10
+	// Check allocation rate
+	if r.analysis.AllocRate > HealthCheckAllocationRateThreshold {
+		status.Score -= PenaltyAllocationRate
 		status.Issues = append(status.Issues, "High allocation rate")
 	}
 
 	// Determine status based on score
 	switch {
-	case status.Score >= 80:
+	case status.Score >= HealthScoreHealthy:
 		status.Status = "healthy"
 		status.Summary = "GC performance is good"
-	case status.Score >= 60:
+	case status.Score >= HealthScoreWarning:
 		status.Status = "warning"
 		status.Summary = "GC performance needs attention"
 	default:
