@@ -150,10 +150,9 @@ func TestGCMetrics_NewGCMetrics(t *testing.T) {
 		t.Error("Expected non-zero timestamp")
 	}
 
-	// Basic sanity checks
-	if metrics.NumGC < 0 {
-		t.Error("NumGC should not be negative")
-	}
+	// Basic sanity checks - NumGC is uint32, so it's always >= 0
+	// Just verify we got a valid value
+	_ = metrics.NumGC
 }
 
 func TestGCMetrics_ToBytes(t *testing.T) {

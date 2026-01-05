@@ -320,7 +320,9 @@ func BenchmarkMemoryUsage(b *testing.B) {
 		}
 
 		var buf strings.Builder
-		gcanalyzer.GenerateTextReport(analysis, metrics, events, &buf)
+		if err := gcanalyzer.GenerateTextReport(analysis, metrics, events, &buf); err != nil {
+			b.Fatal(err)
+		}
 
 		// Force cleanup
 		runtime.KeepAlive(analysis)

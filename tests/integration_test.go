@@ -89,7 +89,7 @@ func TestIntegration_FullAnalysisFlow(t *testing.T) {
 	// Test health check
 	healthCheck := gcanalyzer.GenerateHealthCheck(analysis)
 	if healthCheck == nil {
-		t.Error("Health check should not be nil")
+		t.Fatal("Health check should not be nil")
 	}
 
 	if healthCheck.Status == "" {

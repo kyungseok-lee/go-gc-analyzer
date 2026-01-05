@@ -6,12 +6,17 @@ import (
 	"time"
 )
 
+// pauseSlice wraps a slice for use with sync.Pool to avoid allocation on Put.
+type pauseSlice struct {
+	data []uint64
+}
+
 // pauseSlicePool provides reusable pause time slice storage to reduce allocations.
 // The runtime.MemStats PauseNs/PauseEnd arrays are always 256 elements.
 var pauseSlicePool = sync.Pool{
 	New: func() any {
 		// Pre-allocate slice with exact capacity needed
-		return make([]uint64, 256)
+		return &pauseSlice{data: make([]uint64, 256)}
 	},
 }
 
@@ -53,6 +58,10 @@ type GCMetrics struct {
 
 	// pooled indicates whether this metrics uses pooled slices
 	pooled bool
+
+	// pauseNsWrapper and pauseEndWrapper hold pooled slice wrappers for proper return to pool
+	pauseNsWrapper  *pauseSlice
+	pauseEndWrapper *pauseSlice
 }
 
 // GCAnalysis represents analyzed GC performance data
@@ -169,37 +178,39 @@ func NewGCMetricsPooled() *GCMetrics {
 	runtime.ReadMemStats(&m)
 
 	// Get slices from pool
-	pauseNs := pauseSlicePool.Get().([]uint64)
-	pauseEnd := pauseSlicePool.Get().([]uint64)
+	pauseNsWrapper := pauseSlicePool.Get().(*pauseSlice)
+	pauseEndWrapper := pauseSlicePool.Get().(*pauseSlice)
 
 	// Copy data
-	copy(pauseNs, m.PauseNs[:])
-	copy(pauseEnd, m.PauseEnd[:])
+	copy(pauseNsWrapper.data, m.PauseNs[:])
+	copy(pauseEndWrapper.data, m.PauseEnd[:])
 
 	return &GCMetrics{
-		NumGC:         m.NumGC,
-		PauseTotalNs:  m.PauseTotalNs,
-		PauseNs:       pauseNs,
-		PauseEnd:      pauseEnd,
-		LastGC:        time.Unix(0, int64(m.LastGC)),
-		Alloc:         m.Alloc,
-		TotalAlloc:    m.TotalAlloc,
-		Sys:           m.Sys,
-		Lookups:       m.Lookups,
-		Mallocs:       m.Mallocs,
-		Frees:         m.Frees,
-		HeapAlloc:     m.HeapAlloc,
-		HeapSys:       m.HeapSys,
-		HeapIdle:      m.HeapIdle,
-		HeapInuse:     m.HeapInuse,
-		HeapReleased:  m.HeapReleased,
-		HeapObjects:   m.HeapObjects,
-		StackInuse:    m.StackInuse,
-		StackSys:      m.StackSys,
-		NextGC:        m.NextGC,
-		GCCPUFraction: m.GCCPUFraction,
-		Timestamp:     time.Now(),
-		pooled:        true,
+		NumGC:           m.NumGC,
+		PauseTotalNs:    m.PauseTotalNs,
+		PauseNs:         pauseNsWrapper.data,
+		PauseEnd:        pauseEndWrapper.data,
+		LastGC:          time.Unix(0, int64(m.LastGC)),
+		Alloc:           m.Alloc,
+		TotalAlloc:      m.TotalAlloc,
+		Sys:             m.Sys,
+		Lookups:         m.Lookups,
+		Mallocs:         m.Mallocs,
+		Frees:           m.Frees,
+		HeapAlloc:       m.HeapAlloc,
+		HeapSys:         m.HeapSys,
+		HeapIdle:        m.HeapIdle,
+		HeapInuse:       m.HeapInuse,
+		HeapReleased:    m.HeapReleased,
+		HeapObjects:     m.HeapObjects,
+		StackInuse:      m.StackInuse,
+		StackSys:        m.StackSys,
+		NextGC:          m.NextGC,
+		GCCPUFraction:   m.GCCPUFraction,
+		Timestamp:       time.Now(),
+		pooled:          true,
+		pauseNsWrapper:  pauseNsWrapper,
+		pauseEndWrapper: pauseEndWrapper,
 	}
 }
 
@@ -210,16 +221,18 @@ func (m *GCMetrics) Release() {
 		return
 	}
 
-	if m.PauseNs != nil {
+	if m.pauseNsWrapper != nil {
 		// Clear slice before returning to pool
-		clear(m.PauseNs)
-		pauseSlicePool.Put(m.PauseNs)
+		clear(m.pauseNsWrapper.data)
+		pauseSlicePool.Put(m.pauseNsWrapper)
+		m.pauseNsWrapper = nil
 		m.PauseNs = nil
 	}
 
-	if m.PauseEnd != nil {
-		clear(m.PauseEnd)
-		pauseSlicePool.Put(m.PauseEnd)
+	if m.pauseEndWrapper != nil {
+		clear(m.pauseEndWrapper.data)
+		pauseSlicePool.Put(m.pauseEndWrapper)
+		m.pauseEndWrapper = nil
 		m.PauseEnd = nil
 	}
 

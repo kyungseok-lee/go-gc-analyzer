@@ -252,8 +252,8 @@ func (r *Reporter) GenerateJSONReportWithOptions(w io.Writer, opts JSONReportOpt
 			Analysis *types.GCAnalysis  `json:"analysis"`
 			Metrics  []*types.GCMetrics `json:"metrics,omitempty"`
 			Events   []*types.GCEvent   `json:"events,omitempty"`
-		}{
-			Analysis: r.analysis,
+	}{
+		Analysis: r.analysis,
 			Metrics:  metrics,
 			Events:   events,
 		}
@@ -292,7 +292,9 @@ func (r *Reporter) GenerateTableReport(w io.Writer) error {
 	// Header
 	b.WriteString("Timestamp\tGC#\tHeap\tSys\tPause\tObjects\tAlloc/s\n")
 	b.WriteString("---------\t---\t----\t---\t-----\t-------\t-------\n")
-	io.WriteString(tw, b.String())
+	if _, err := io.WriteString(tw, b.String()); err != nil {
+		return err
+	}
 	b.Reset()
 
 	// Data rows
@@ -328,7 +330,9 @@ func (r *Reporter) GenerateTableReport(w io.Writer) error {
 		b.WriteString(allocRate)
 		b.WriteByte('\n')
 
-		io.WriteString(tw, b.String())
+		if _, err := io.WriteString(tw, b.String()); err != nil {
+			return err
+		}
 		b.Reset()
 	}
 
@@ -399,7 +403,9 @@ func (r *Reporter) GenerateEventsReport(w io.Writer) error {
 	b.WriteString("=== GC Events Report ===\n\n")
 	b.WriteString("Seq#\tStart Time\tDuration\tTrigger\tHeap Before\tHeap After\tReleased\n")
 	b.WriteString("----\t----------\t--------\t-------\t-----------\t----------\t--------\n")
-	io.WriteString(tw, b.String())
+	if _, err := io.WriteString(tw, b.String()); err != nil {
+		return err
+	}
 	b.Reset()
 
 	for _, event := range r.events {
@@ -418,7 +424,9 @@ func (r *Reporter) GenerateEventsReport(w io.Writer) error {
 		b.WriteString(types.FormatBytes(event.HeapReleased))
 		b.WriteByte('\n')
 
-		io.WriteString(tw, b.String())
+		if _, err := io.WriteString(tw, b.String()); err != nil {
+			return err
+		}
 		b.Reset()
 	}
 
