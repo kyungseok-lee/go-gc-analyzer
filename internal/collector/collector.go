@@ -9,7 +9,9 @@ import (
 	"github.com/kyungseok-lee/go-gc-analyzer/pkg/types"
 )
 
-// Collector is responsible for collecting GC metrics over time
+// Collector is responsible for collecting GC metrics over time.
+// It provides thread-safe metric collection with configurable intervals
+// and supports callback functions for real-time monitoring.
 type Collector struct {
 	mu         sync.RWMutex
 	running    atomic.Bool
@@ -18,6 +20,7 @@ type Collector struct {
 	interval   time.Duration
 	maxSamples int
 	stopCh     chan struct{}
+	wg         sync.WaitGroup // Added for graceful shutdown
 
 	// Callbacks
 	onMetricCollected func(*types.GCMetrics)
@@ -64,7 +67,9 @@ func New(config *Config) *Collector {
 	}
 }
 
-// Start begins collecting GC metrics
+// Start begins collecting GC metrics.
+// Returns ErrCollectorAlreadyRunning if the collector is already running.
+// The collector will stop when the context is cancelled or Stop() is called.
 func (c *Collector) Start(ctx context.Context) error {
 	if !c.running.CompareAndSwap(false, true) {
 		return types.ErrCollectorAlreadyRunning
@@ -75,12 +80,14 @@ func (c *Collector) Start(ctx context.Context) error {
 	c.stopCh = make(chan struct{})
 	c.mu.Unlock()
 
+	c.wg.Add(1)
 	go c.collectLoop(ctx)
 
 	return nil
 }
 
-// Stop stops collecting GC metrics
+// Stop stops collecting GC metrics and waits for the collection loop to finish.
+// It is safe to call Stop multiple times.
 func (c *Collector) Stop() {
 	if !c.running.CompareAndSwap(true, false) {
 		return
@@ -89,6 +96,9 @@ func (c *Collector) Stop() {
 	c.mu.Lock()
 	close(c.stopCh)
 	c.mu.Unlock()
+
+	// Wait for the collection loop to finish
+	c.wg.Wait()
 }
 
 // IsRunning returns whether the collector is currently running
@@ -165,8 +175,11 @@ func (c *Collector) Clear() {
 	c.events = c.events[:0]
 }
 
-// collectLoop runs the collection loop
+// collectLoop runs the collection loop.
+// It handles context cancellation and stop signals gracefully.
 func (c *Collector) collectLoop(ctx context.Context) {
+	defer c.wg.Done()
+
 	ticker := time.NewTicker(c.interval)
 	defer ticker.Stop()
 

@@ -3,7 +3,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/kyungseok-lee/go-gc-analyzer)](https://goreportcard.com/report/github.com/kyungseok-lee/go-gc-analyzer)
 [![GoDoc](https://godoc.org/github.com/kyungseok-lee/go-gc-analyzer?status.svg)](https://godoc.org/github.com/kyungseok-lee/go-gc-analyzer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Go Version](https://img.shields.io/badge/Go-1.25+-blue.svg)](https://golang.org/dl/)
+[![Go Version](https://img.shields.io/badge/Go-1.21+-blue.svg)](https://golang.org/dl/)
 
 A comprehensive Go library for analyzing and monitoring garbage collection (GC) performance in Go applications. This library provides detailed insights into GC behavior, memory usage patterns, and performance metrics to help optimize your Go applications.
 
@@ -11,7 +11,7 @@ A comprehensive Go library for analyzing and monitoring garbage collection (GC) 
 
 - **Real-time GC Monitoring**: Continuous collection of GC metrics with configurable intervals and alerting
 - **Comprehensive Analysis**: Detailed analysis of GC frequency, pause times, memory usage, and allocation patterns
-- **Multiple Report Formats**: Generate reports in text, JSON, and summary formats
+- **Multiple Report Formats**: Generate reports in text, JSON, Prometheus, and summary formats
 - **Health Monitoring**: Built-in health checks with configurable alert thresholds and scoring
 - **Memory Trend Analysis**: Track memory usage patterns over time with detailed trend data
 - **Pause Time Distribution**: Analyze GC pause time distributions and percentiles from GC events
@@ -19,7 +19,8 @@ A comprehensive Go library for analyzing and monitoring garbage collection (GC) 
 - **Simple API**: Clean and intuitive API with single import path (`pkg/gcanalyzer`)
 - **Modular Architecture**: Well-structured internal packages with clean separation of concerns
 - **Zero Dependencies**: Pure Go implementation with no external dependencies
-- **High Performance**: Optimized with minimal allocations and efficient data structures
+- **High Performance**: Optimized with minimal allocations, efficient sorting (using `slices` package), and graceful shutdown support
+- **Thread-Safe**: All monitoring operations are safe for concurrent use
 
 ## 📦 Installation
 
@@ -27,7 +28,7 @@ A comprehensive Go library for analyzing and monitoring garbage collection (GC) 
 go get github.com/kyungseok-lee/go-gc-analyzer
 ```
 
-**Requirements**: Go 1.25 or later
+**Requirements**: Go 1.21 or later (uses `slices` package for optimized sorting)
 
 ## 🏃‍♂️ Quick Start
 
@@ -365,19 +366,19 @@ go tool cover -html=coverage.out
 The library is designed for minimal overhead (Apple M1 Pro):
 
 ```
-BenchmarkCollectOnce-10                    50479     23013 ns/op    4336 B/op     3 allocs/op
-BenchmarkAnalyzer_Analyze-10             2036685       590 ns/op     808 B/op     5 allocs/op
-BenchmarkAnalyzer_GetMemoryTrend-10      1556238       843 ns/op    4864 B/op     1 allocs/op
-BenchmarkReporter_GenerateTextReport-10   353306      3409 ns/op    2025 B/op    46 allocs/op
-BenchmarkReporter_GenerateHealthCheck-10 12463647       98 ns/op     192 B/op     2 allocs/op
+BenchmarkCollectOnce-10                    42912     26028 ns/op    4336 B/op     3 allocs/op
+BenchmarkAnalyzer_Analyze-10             2212604       546 ns/op     752 B/op     3 allocs/op
+BenchmarkAnalyzer_GetMemoryTrend-10      1415532       828 ns/op    4864 B/op     1 allocs/op
+BenchmarkReporter_GenerateTextReport-10   404581      3003 ns/op    1985 B/op    41 allocs/op
+BenchmarkReporter_GenerateHealthCheck-10 12011064      112 ns/op     192 B/op     2 allocs/op
 ```
 
 Performance characteristics:
-- **CollectOnce**: ~23μs per collection
-- **Analysis**: Scales linearly with data points
-- **Reporting**: Fast generation of all formats
-- **Health Check**: Sub-microsecond generation
-- **Memory overhead**: Minimal, configurable retention
+- **CollectOnce**: ~26μs per collection (includes runtime.ReadMemStats)
+- **Analysis**: ~546ns with optimized sorting using `slices.SortFunc`
+- **Reporting**: Fast generation with reduced allocations
+- **Health Check**: Sub-microsecond generation (~112ns)
+- **Memory overhead**: Minimal, configurable retention with graceful cleanup
 
 ## 🔌 Integration
 

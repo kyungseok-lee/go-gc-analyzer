@@ -1,26 +1,30 @@
 package analysis
 
 import (
-	"sort"
+	"slices"
 	"time"
 
 	"github.com/kyungseok-lee/go-gc-analyzer/pkg/types"
 )
 
-// Analyzer provides GC performance analysis capabilities
+// Analyzer provides GC performance analysis capabilities.
+// It analyzes GC metrics and events to provide insights into GC behavior
+// and generates recommendations for performance optimization.
 type Analyzer struct {
 	metrics []*types.GCMetrics
 	events  []*types.GCEvent
 }
 
-// New creates a new analyzer with the provided metrics
+// New creates a new analyzer with the provided metrics.
+// Returns an Analyzer that can perform comprehensive GC analysis.
 func New(metrics []*types.GCMetrics) *Analyzer {
 	return &Analyzer{
 		metrics: metrics,
 	}
 }
 
-// NewWithEvents creates a new analyzer with metrics and events
+// NewWithEvents creates a new analyzer with metrics and events.
+// Events provide more detailed pause time information for analysis.
 func NewWithEvents(metrics []*types.GCMetrics, events []*types.GCEvent) *Analyzer {
 	return &Analyzer{
 		metrics: metrics,
@@ -85,7 +89,8 @@ func (a *Analyzer) analyzeGCFrequency(analysis *types.GCAnalysis) {
 	}
 }
 
-// analyzePauseTimes analyzes GC pause time statistics
+// analyzePauseTimes analyzes GC pause time statistics.
+// Uses events if available, otherwise falls back to metrics data.
 func (a *Analyzer) analyzePauseTimes(analysis *types.GCAnalysis) {
 	if len(a.events) == 0 {
 		// Fallback to analyzing pause data from metrics
@@ -102,8 +107,15 @@ func (a *Analyzer) analyzePauseTimes(analysis *types.GCAnalysis) {
 		total += event.Duration
 	}
 
-	sort.Slice(durations, func(i, j int) bool {
-		return durations[i] < durations[j]
+	// Use slices.SortFunc for better performance (Go 1.21+)
+	slices.SortFunc(durations, func(a, b time.Duration) int {
+		if a < b {
+			return -1
+		}
+		if a > b {
+			return 1
+		}
+		return 0
 	})
 
 	analysis.AvgPauseTime = total / time.Duration(n)
@@ -127,7 +139,8 @@ func percentileIndex(n int, percentile float64) int {
 	return idx
 }
 
-// analyzePauseTimesFromMetrics analyzes pause times from metrics when events are not available
+// analyzePauseTimesFromMetrics analyzes pause times from metrics when events are not available.
+// This is a fallback method that extracts pause data from the PauseNs ring buffer.
 func (a *Analyzer) analyzePauseTimesFromMetrics(analysis *types.GCAnalysis) {
 	if len(a.metrics) < 2 {
 		return
@@ -144,8 +157,9 @@ func (a *Analyzer) analyzePauseTimesFromMetrics(analysis *types.GCAnalysis) {
 		analysis.AvgPauseTime = totalPauseTime / time.Duration(totalGCs)
 	}
 
-	// Find min/max from recent pause data - estimate max capacity to avoid reallocations
-	pauses := make([]time.Duration, 0, len(a.metrics)*256)
+	// Find min/max from recent pause data
+	// Pre-allocate with conservative estimate (256 is the size of PauseNs ring buffer)
+	pauses := make([]time.Duration, 0, min(len(a.metrics)*256, 4096))
 	for _, metrics := range a.metrics {
 		for _, pauseNs := range metrics.PauseNs {
 			if pauseNs > 0 {
@@ -155,8 +169,15 @@ func (a *Analyzer) analyzePauseTimesFromMetrics(analysis *types.GCAnalysis) {
 	}
 
 	if len(pauses) > 0 {
-		sort.Slice(pauses, func(i, j int) bool {
-			return pauses[i] < pauses[j]
+		// Use slices.SortFunc for better performance (Go 1.21+)
+		slices.SortFunc(pauses, func(a, b time.Duration) int {
+			if a < b {
+				return -1
+			}
+			if a > b {
+				return 1
+			}
+			return 0
 		})
 
 		n := len(pauses)

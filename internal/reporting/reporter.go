@@ -2,6 +2,7 @@ package reporting
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"text/tabwriter"
@@ -10,14 +11,23 @@ import (
 	"github.com/kyungseok-lee/go-gc-analyzer/pkg/types"
 )
 
-// Reporter provides various reporting formats for GC analysis
+// Report generation errors
+var (
+	ErrNoAnalysisData = errors.New("no analysis data available")
+	ErrNoMetricsData  = errors.New("no metrics data available")
+	ErrNoEventsData   = errors.New("no events data available")
+)
+
+// Reporter provides various reporting formats for GC analysis.
+// It generates human-readable and machine-readable reports from GC analysis data.
 type Reporter struct {
 	analysis *types.GCAnalysis
 	metrics  []*types.GCMetrics
 	events   []*types.GCEvent
 }
 
-// New creates a new reporter
+// New creates a new reporter with the provided analysis data.
+// Metrics and events are optional and can be nil.
 func New(analysis *types.GCAnalysis, metrics []*types.GCMetrics, events []*types.GCEvent) *Reporter {
 	return &Reporter{
 		analysis: analysis,
@@ -26,10 +36,11 @@ func New(analysis *types.GCAnalysis, metrics []*types.GCMetrics, events []*types
 	}
 }
 
-// GenerateTextReport generates a human-readable text report
+// GenerateTextReport generates a human-readable text report.
+// It includes all analysis metrics, statistics, and recommendations.
 func (r *Reporter) GenerateTextReport(w io.Writer) error {
 	if r.analysis == nil {
-		return fmt.Errorf("no analysis data available")
+		return ErrNoAnalysisData
 	}
 
 	fmt.Fprintf(w, "=== Go GC Analysis Report ===\n\n")
@@ -103,10 +114,11 @@ func (r *Reporter) GenerateJSONReport(w io.Writer, indent bool) error {
 	return encoder.Encode(report)
 }
 
-// GenerateTableReport generates a tabular report
+// GenerateTableReport generates a tabular report.
+// It displays metrics in a tabulated format for easy reading.
 func (r *Reporter) GenerateTableReport(w io.Writer) error {
 	if len(r.metrics) == 0 {
-		return fmt.Errorf("no metrics data available")
+		return ErrNoMetricsData
 	}
 
 	tw := tabwriter.NewWriter(w, 0, 0, 1, ' ', tabwriter.AlignRight)
@@ -148,10 +160,11 @@ func (r *Reporter) GenerateTableReport(w io.Writer) error {
 	return nil
 }
 
-// GenerateSummaryReport generates a concise summary report
+// GenerateSummaryReport generates a concise summary report.
+// It provides a quick overview of GC performance metrics.
 func (r *Reporter) GenerateSummaryReport(w io.Writer) error {
 	if r.analysis == nil {
-		return fmt.Errorf("no analysis data available")
+		return ErrNoAnalysisData
 	}
 
 	fmt.Fprintf(w, "GC Summary Report\n")
@@ -180,10 +193,11 @@ func (r *Reporter) GenerateSummaryReport(w io.Writer) error {
 	return nil
 }
 
-// GenerateEventsReport generates a report focused on GC events
+// GenerateEventsReport generates a report focused on GC events.
+// It displays detailed information about each GC event.
 func (r *Reporter) GenerateEventsReport(w io.Writer) error {
 	if len(r.events) == 0 {
-		return fmt.Errorf("no events data available")
+		return ErrNoEventsData
 	}
 
 	tw := tabwriter.NewWriter(w, 0, 0, 1, ' ', tabwriter.AlignRight)
@@ -208,10 +222,11 @@ func (r *Reporter) GenerateEventsReport(w io.Writer) error {
 	return nil
 }
 
-// GenerateGrafanaMetrics generates metrics in Prometheus/Grafana format
+// GenerateGrafanaMetrics generates metrics in Prometheus/Grafana format.
+// It outputs metrics in the Prometheus exposition format for integration with monitoring systems.
 func (r *Reporter) GenerateGrafanaMetrics(w io.Writer) error {
 	if r.analysis == nil {
-		return fmt.Errorf("no analysis data available")
+		return ErrNoAnalysisData
 	}
 
 	timestamp := time.Now().Unix()

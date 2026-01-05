@@ -3,7 +3,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/kyungseok-lee/go-gc-analyzer)](https://goreportcard.com/report/github.com/kyungseok-lee/go-gc-analyzer)
 [![GoDoc](https://godoc.org/github.com/kyungseok-lee/go-gc-analyzer?status.svg)](https://godoc.org/github.com/kyungseok-lee/go-gc-analyzer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Go Version](https://img.shields.io/badge/Go-1.25+-blue.svg)](https://golang.org/dl/)
+[![Go Version](https://img.shields.io/badge/Go-1.21+-blue.svg)](https://golang.org/dl/)
 
 Go 애플리케이션의 가비지 컬렉션(GC) 성능을 분석하고 모니터링하는 포괄적인 Go 라이브러리입니다. 이 라이브러리는 GC 동작, 메모리 사용 패턴, 성능 메트릭에 대한 상세한 인사이트를 제공하여 Go 애플리케이션 최적화를 돕습니다.
 
@@ -11,7 +11,7 @@ Go 애플리케이션의 가비지 컬렉션(GC) 성능을 분석하고 모니�
 
 - **실시간 GC 모니터링**: 설정 가능한 간격과 알림 기능을 갖춘 GC 메트릭의 지속적 수집
 - **포괄적인 분석**: GC 빈도, 일시 정지 시간, 메모리 사용량, 할당 패턴의 상세 분석
-- **다양한 리포트 형식**: 텍스트, JSON, 요약 형식의 리포트 생성
+- **다양한 리포트 형식**: 텍스트, JSON, Prometheus, 요약 형식의 리포트 생성
 - **헬스 모니터링**: 설정 가능한 알림 임계값과 점수 시스템을 가진 내장 헬스 체크
 - **메모리 트렌드 분석**: 상세한 트렌드 데이터로 시간에 따른 메모리 사용 패턴 추적
 - **일시 정지 시간 분포**: GC 이벤트에서 일시 정지 시간 분포 및 백분위수 분석
@@ -19,7 +19,8 @@ Go 애플리케이션의 가비지 컬렉션(GC) 성능을 분석하고 모니�
 - **간단한 API**: 단일 import 경로(`pkg/gcanalyzer`)를 가진 깔끔하고 직관적인 API
 - **모듈러 아키텍처**: 관심사 분리가 명확한 잘 구조화된 내부 패키지
 - **의존성 없음**: 외부 의존성이 없는 순수 Go 구현
-- **고성능**: 최소한의 할당과 효율적인 데이터 구조로 최적화
+- **고성능**: 최소한의 할당, `slices` 패키지를 활용한 효율적인 정렬, 그레이스풀 셧다운 지원
+- **스레드 안전성**: 모든 모니터링 작업은 동시 사용에 안전
 
 ## 📦 설치
 
@@ -27,7 +28,7 @@ Go 애플리케이션의 가비지 컬렉션(GC) 성능을 분석하고 모니�
 go get github.com/kyungseok-lee/go-gc-analyzer
 ```
 
-**요구사항**: Go 1.25 이상
+**요구사항**: Go 1.21 이상 (최적화된 정렬을 위해 `slices` 패키지 사용)
 
 ## 🏃‍♂️ 빠른 시작
 
@@ -365,19 +366,19 @@ go tool cover -html=coverage.out
 라이브러리는 최소한의 오버헤드를 위해 설계되었습니다 (Apple M1 Pro):
 
 ```
-BenchmarkCollectOnce-10                    50479     23013 ns/op    4336 B/op     3 allocs/op
-BenchmarkAnalyzer_Analyze-10             2036685       590 ns/op     808 B/op     5 allocs/op
-BenchmarkAnalyzer_GetMemoryTrend-10      1556238       843 ns/op    4864 B/op     1 allocs/op
-BenchmarkReporter_GenerateTextReport-10   353306      3409 ns/op    2025 B/op    46 allocs/op
-BenchmarkReporter_GenerateHealthCheck-10 12463647       98 ns/op     192 B/op     2 allocs/op
+BenchmarkCollectOnce-10                    42912     26028 ns/op    4336 B/op     3 allocs/op
+BenchmarkAnalyzer_Analyze-10             2212604       546 ns/op     752 B/op     3 allocs/op
+BenchmarkAnalyzer_GetMemoryTrend-10      1415532       828 ns/op    4864 B/op     1 allocs/op
+BenchmarkReporter_GenerateTextReport-10   404581      3003 ns/op    1985 B/op    41 allocs/op
+BenchmarkReporter_GenerateHealthCheck-10 12011064      112 ns/op     192 B/op     2 allocs/op
 ```
 
 성능 특성:
-- **CollectOnce**: 수집당 약 23μs
-- **분석**: 데이터 포인트와 선형적으로 확장
-- **리포팅**: 모든 형식의 빠른 생성
-- **헬스 체크**: 마이크로초 미만 생성
-- **메모리 오버헤드**: 최소한, 설정 가능한 보관 기간
+- **CollectOnce**: 수집당 약 26μs (runtime.ReadMemStats 포함)
+- **분석**: `slices.SortFunc`를 사용한 최적화된 정렬로 약 546ns
+- **리포팅**: 할당 감소로 빠른 생성
+- **헬스 체크**: 마이크로초 미만 생성 (약 112ns)
+- **메모리 오버헤드**: 최소한, 그레이스풀 정리가 포함된 설정 가능한 보관 기간
 
 ## 🔌 통합
 
