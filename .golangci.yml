@@ -25,7 +25,6 @@ linters:
     - bodyclose
     - noctx
     - prealloc
-    - exportloopref
 
 linters-settings:
   errcheck:
@@ -86,6 +85,7 @@ issues:
         - errcheck
         - gocritic
         - prealloc
+        - govet  # Disable unusedwrite warnings in tests
 
     # Exclude known issues in examples
     - path: examples/

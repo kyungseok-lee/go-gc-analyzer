@@ -152,7 +152,7 @@ func TestCollector_ContextCancellation(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	if c.IsRunning() {
-		t.Error("Collector should stop when context is cancelled")
+		t.Error("Collector should stop when context is canceled")
 	}
 }
 
@@ -463,4 +463,3 @@ func BenchmarkCollector_GetMetrics(b *testing.B) {
 	b.StopTimer()
 	c.Stop()
 }
-

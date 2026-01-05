@@ -178,8 +178,16 @@ func NewGCMetricsPooled() *GCMetrics {
 	runtime.ReadMemStats(&m)
 
 	// Get slices from pool
-	pauseNsWrapper := pauseSlicePool.Get().(*pauseSlice)
-	pauseEndWrapper := pauseSlicePool.Get().(*pauseSlice)
+	pauseNsWrapper, ok1 := pauseSlicePool.Get().(*pauseSlice)
+	pauseEndWrapper, ok2 := pauseSlicePool.Get().(*pauseSlice)
+
+	// Fallback if type assertion fails
+	if !ok1 {
+		pauseNsWrapper = &pauseSlice{data: make([]uint64, 256)}
+	}
+	if !ok2 {
+		pauseEndWrapper = &pauseSlice{data: make([]uint64, 256)}
+	}
 
 	// Copy data
 	copy(pauseNsWrapper.data, m.PauseNs[:])

@@ -207,13 +207,13 @@ func TestAnalyzeGCFrequency(t *testing.T) {
 
 func TestGetPauseTimeDistribution(t *testing.T) {
 	events := []*types.GCEvent{
-		{Duration: 500 * time.Microsecond},  // 0-1ms
-		{Duration: 2 * time.Millisecond},    // 1-5ms
-		{Duration: 7 * time.Millisecond},    // 5-10ms
-		{Duration: 25 * time.Millisecond},   // 10-50ms
-		{Duration: 75 * time.Millisecond},   // 50-100ms
-		{Duration: 150 * time.Millisecond},  // 100ms+
-		{Duration: 200 * time.Millisecond},  // 100ms+
+		{Duration: 500 * time.Microsecond}, // 0-1ms
+		{Duration: 2 * time.Millisecond},   // 1-5ms
+		{Duration: 7 * time.Millisecond},   // 5-10ms
+		{Duration: 25 * time.Millisecond},  // 10-50ms
+		{Duration: 75 * time.Millisecond},  // 50-100ms
+		{Duration: 150 * time.Millisecond}, // 100ms+
+		{Duration: 200 * time.Millisecond}, // 100ms+
 	}
 
 	analyzer := NewWithEvents(nil, events)
@@ -284,13 +284,13 @@ func TestGetMemoryTrend_Empty(t *testing.T) {
 	}
 }
 
-func TestGetAnalysisStats(t *testing.T) {
+func TestGetStats(t *testing.T) {
 	baseTime := time.Now()
 	metrics := createTestMetrics(10, baseTime, time.Second)
 	events := createTestEvents(5, baseTime)
 
 	analyzer := NewWithEvents(metrics, events)
-	stats := analyzer.GetAnalysisStats()
+	stats := analyzer.GetStats()
 
 	if stats.MetricCount != 10 {
 		t.Errorf("MetricCount = %d, want 10", stats.MetricCount)
@@ -389,4 +389,3 @@ func BenchmarkGetMemoryTrend(b *testing.B) {
 		_ = analyzer.GetMemoryTrend()
 	}
 }
-

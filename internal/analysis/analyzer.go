@@ -19,7 +19,12 @@ var durationSlicePool = sync.Pool{
 }
 
 func getDurationSlice() *[]time.Duration {
-	s := durationSlicePool.Get().(*[]time.Duration)
+	s, ok := durationSlicePool.Get().(*[]time.Duration)
+	if !ok {
+		// Fallback: create new slice if type assertion fails
+		newSlice := make([]time.Duration, 0, 256)
+		return &newSlice
+	}
 	*s = (*s)[:0]
 	return s
 }
@@ -470,17 +475,17 @@ func (a *Analyzer) GetMemoryTrend() []types.MemoryPoint {
 	return points
 }
 
-// AnalysisStats provides statistics about the analysis operation itself
-type AnalysisStats struct {
+// Stats provides statistics about the analysis operation itself
+type Stats struct {
 	MetricCount   int
 	EventCount    int
 	PeriodSeconds float64
 	GCCount       uint32
 }
 
-// GetAnalysisStats returns statistics about the data being analyzed
-func (a *Analyzer) GetAnalysisStats() AnalysisStats {
-	stats := AnalysisStats{
+// GetStats returns statistics about the data being analyzed
+func (a *Analyzer) GetStats() Stats {
+	stats := Stats{
 		MetricCount: len(a.metrics),
 		EventCount:  len(a.events),
 	}

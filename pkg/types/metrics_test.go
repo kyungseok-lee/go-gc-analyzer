@@ -320,13 +320,13 @@ func TestMemoryPoint(t *testing.T) {
 
 func TestGCAnalysis(t *testing.T) {
 	analysis := &GCAnalysis{
-		Period:           time.Minute,
-		StartTime:        time.Now().Add(-time.Minute),
-		EndTime:          time.Now(),
-		GCFrequency:      2.5,
-		AvgGCInterval:    24 * time.Second,
-		AvgPauseTime:     500 * time.Microsecond,
-		Recommendations:  []string{"Test recommendation"},
+		Period:          time.Minute,
+		StartTime:       time.Now().Add(-time.Minute),
+		EndTime:         time.Now(),
+		GCFrequency:     2.5,
+		AvgGCInterval:   24 * time.Second,
+		AvgPauseTime:    500 * time.Microsecond,
+		Recommendations: []string{"Test recommendation"},
 	}
 
 	if analysis.Period != time.Minute {
@@ -405,4 +405,3 @@ func BenchmarkFormatBytes(b *testing.B) {
 		}
 	}
 }
-

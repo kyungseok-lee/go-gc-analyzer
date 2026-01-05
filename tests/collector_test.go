@@ -187,7 +187,7 @@ func TestCollectForDuration_ContextCancel(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	// Should have some metrics even though cancelled early
+	// Should have some metrics even though canceled early
 	if len(metrics) < 1 {
 		// This is timing-dependent, so just log instead of failing
 		t.Log("Expected some metrics even after cancellation, but timing may vary")

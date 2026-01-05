@@ -194,10 +194,10 @@ func TestGenerateJSONReportWithOptions(t *testing.T) {
 	reporter := New(analysis, metrics, events)
 
 	tests := []struct {
-		name           string
-		opts           JSONReportOptions
-		expectMetrics  bool
-		expectEvents   bool
+		name          string
+		opts          JSONReportOptions
+		expectMetrics bool
+		expectEvents  bool
 	}{
 		{
 			name: "all included",
@@ -593,4 +593,3 @@ func BenchmarkGenerateGrafanaMetrics(b *testing.B) {
 		_ = reporter.GenerateGrafanaMetrics(&buf)
 	}
 }
-

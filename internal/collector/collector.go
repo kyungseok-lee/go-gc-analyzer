@@ -76,7 +76,7 @@ func New(config *Config) *Collector {
 
 // Start begins collecting GC metrics.
 // Returns ErrCollectorAlreadyRunning if the collector is already running.
-// The collector will stop when the context is cancelled or Stop() is called.
+// The collector will stop when the context is canceled or Stop() is called.
 func (c *Collector) Start(ctx context.Context) error {
 	if !c.running.CompareAndSwap(false, true) {
 		return types.ErrCollectorAlreadyRunning
@@ -329,7 +329,7 @@ func CollectOnceLite() *types.GCMetrics {
 }
 
 // CollectForDuration collects GC metrics for a specific duration
-func CollectForDuration(ctx context.Context, duration time.Duration, interval time.Duration) ([]*types.GCMetrics, error) {
+func CollectForDuration(ctx context.Context, duration, interval time.Duration) ([]*types.GCMetrics, error) {
 	if interval == 0 {
 		interval = types.DefaultCollectionInterval
 	}
@@ -359,7 +359,7 @@ func CollectForDuration(ctx context.Context, duration time.Duration, interval ti
 }
 
 // CollectForDurationLite collects lightweight GC metrics for a specific duration
-func CollectForDurationLite(ctx context.Context, duration time.Duration, interval time.Duration) ([]*types.GCMetrics, error) {
+func CollectForDurationLite(ctx context.Context, duration, interval time.Duration) ([]*types.GCMetrics, error) {
 	if interval == 0 {
 		interval = types.DefaultCollectionInterval
 	}
