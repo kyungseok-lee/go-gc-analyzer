@@ -371,6 +371,31 @@ make clean       # Clean artifacts
 
 ---
 
+## Code Quality
+
+This project passes all quality checks:
+
+```bash
+# Format check
+gofmt -s -l .           # No output = all formatted
+
+# Static analysis
+go vet ./...            # All checks pass
+
+# Comprehensive linting
+golangci-lint run       # All checks pass
+```
+
+### Enabled Linters
+
+- **errcheck**: Check error return values
+- **staticcheck**: Go static analysis (SA* checks)
+- **gosimple**: Simplify code suggestions
+- **govet**: Report suspicious constructs
+- **ineffassign**: Detect ineffective assignments
+
+---
+
 ## Contributing
 
 1. Fork the repository
