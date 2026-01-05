@@ -46,6 +46,9 @@ coverage.html
 
 # Benchmark results
 *.bench
+benchmarks/*.txt
+benchmarks/
+profiles/
 
 # Profiling data
 *.prof
