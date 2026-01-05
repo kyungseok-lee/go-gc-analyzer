@@ -58,4 +58,3 @@ func FormatBytesRate(bytesPerSecond float64) string {
 func formatFloat(value float64, decimals int) string {
 	return strconv.FormatFloat(value, 'f', decimals, 64)
 }
-

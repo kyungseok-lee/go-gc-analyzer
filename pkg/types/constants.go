@@ -15,21 +15,21 @@ const (
 	ThresholdPauseCritical    = 500 * time.Millisecond
 
 	// Memory thresholds (bytes per second)
-	ThresholdHeapGrowthRateHigh  = 10 * 1024 * 1024  // 10 MB/s
-	ThresholdAllocationRateHigh  = 100 * 1024 * 1024 // 100 MB/s
+	ThresholdHeapGrowthRateHigh = 10 * 1024 * 1024  // 10 MB/s
+	ThresholdAllocationRateHigh = 100 * 1024 * 1024 // 100 MB/s
 
 	// Efficiency thresholds (percentage)
-	ThresholdGCOverheadHigh       = 25.0 // 25%
-	ThresholdMemoryEfficiencyLow  = 50.0 // 50%
-	ThresholdGCCPUFractionAlert   = 0.25 // 25%
+	ThresholdGCOverheadHigh      = 25.0 // 25%
+	ThresholdMemoryEfficiencyLow = 50.0 // 50%
+	ThresholdGCCPUFractionAlert  = 0.25 // 25%
 
 	// Growth trend thresholds
-	ThresholdConsistentGrowth     = 0.1 // 10% consistent growth
-	MinSamplesForTrendAnalysis    = 10
+	ThresholdConsistentGrowth  = 0.1 // 10% consistent growth
+	MinSamplesForTrendAnalysis = 10
 
 	// Health score thresholds
-	HealthScoreHealthy  = 80
-	HealthScoreWarning  = 60
+	HealthScoreHealthy = 80
+	HealthScoreWarning = 60
 
 	// Health check penalties
 	PenaltyGCFrequency      = 15
@@ -43,4 +43,3 @@ const (
 	DefaultCollectionInterval = time.Second
 	DefaultMaxSamples         = 1000
 )
-

@@ -229,9 +229,9 @@ func (r *Reporter) GenerateJSONReportWithOptions(w io.Writer, opts JSONReportOpt
 		}
 
 		report = struct {
-			Analysis *types.GCAnalysis  `json:"analysis"`
-			Metrics  []compactMetrics   `json:"metrics,omitempty"`
-			Events   []*types.GCEvent   `json:"events,omitempty"`
+			Analysis *types.GCAnalysis `json:"analysis"`
+			Metrics  []compactMetrics  `json:"metrics,omitempty"`
+			Events   []*types.GCEvent  `json:"events,omitempty"`
 		}{
 			Analysis: r.analysis,
 			Metrics:  compact,

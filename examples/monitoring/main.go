@@ -14,13 +14,13 @@ import (
 
 func main() {
 	fmt.Println("=== GC Monitoring Service Example ===")
-	
+
 	// Create monitor with alert thresholds
 	monitor := gcanalyzer.NewMonitor(&gcanalyzer.MonitorConfig{
 		Interval:   time.Second,
 		MaxSamples: 300, // Keep 5 minutes of data
 		OnAlert: func(alert *gcanalyzer.Alert) {
-			log.Printf("🚨 ALERT [%s]: %s (%.2f, threshold: %.2f)", 
+			log.Printf("🚨 ALERT [%s]: %s (%.2f, threshold: %.2f)",
 				alert.Severity, alert.Message, alert.Value, alert.Threshold)
 		},
 		OnMetric: func(m *gcanalyzer.GCMetrics) {
@@ -36,27 +36,27 @@ func main() {
 			}
 		},
 	})
-	
+
 	// Start monitoring
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	
+
 	err := monitor.Start(ctx)
 	if err != nil {
 		log.Fatalf("Failed to start monitoring: %v", err)
 	}
-	
+
 	log.Println("🔍 GC Monitoring started...")
 	log.Println("💡 Generating some workload to trigger GC activity...")
-	
+
 	// Start background workload for demonstration
 	go generateApplicationWorkload(ctx)
-	
+
 	// Periodic analysis reporting
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
-		
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -67,11 +67,11 @@ func main() {
 					log.Printf("📊 Analysis not available: %v", err)
 					continue
 				}
-				
+
 				healthCheck := gcanalyzer.GenerateHealthCheck(analysis)
-				log.Printf("📊 GC Health: %s (Score: %d/100)", 
+				log.Printf("📊 GC Health: %s (Score: %d/100)",
 					healthCheck.Status, healthCheck.Score)
-				
+
 				if len(analysis.Recommendations) > 0 {
 					log.Printf("💡 Recommendations:")
 					for _, rec := range analysis.Recommendations {
@@ -81,18 +81,18 @@ func main() {
 			}
 		}
 	}()
-	
+
 	log.Println("Press Ctrl+C to stop...")
-	
+
 	// Wait for shutdown signal
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
-	
+
 	fmt.Println("\nShutting down monitoring service...")
 	monitor.Stop()
 	cancel()
-	
+
 	// Final analysis
 	if analysis, err := monitor.GetCurrentAnalysis(); err == nil {
 		fmt.Println("\n=== Final GC Analysis ===")
@@ -107,14 +107,14 @@ func generateApplicationWorkload(ctx context.Context) {
 		generateBatchProcessingWorkload,
 		generateCacheWorkload,
 	}
-	
+
 	patternIndex := 0
 	switchTimer := time.NewTicker(1 * time.Minute)
 	defer switchTimer.Stop()
-	
+
 	currentCtx, currentCancel := context.WithCancel(ctx)
 	go patterns[patternIndex](currentCtx)
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -124,10 +124,10 @@ func generateApplicationWorkload(ctx context.Context) {
 			// Switch to next pattern
 			currentCancel()
 			patternIndex = (patternIndex + 1) % len(patterns)
-			
+
 			currentCtx, currentCancel = context.WithCancel(ctx)
 			go patterns[patternIndex](currentCtx)
-			
+
 			log.Printf("🔄 Switching to workload pattern %d", patternIndex+1)
 		}
 	}
@@ -137,9 +137,9 @@ func generateApplicationWorkload(ctx context.Context) {
 func generateWebServerWorkload(ctx context.Context) {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
-	
+
 	var connections [][]byte
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -150,12 +150,12 @@ func generateWebServerWorkload(ctx context.Context) {
 				// Request data
 				requestData := make([]byte, 1024+i%512)
 				connections = append(connections, requestData)
-				
+
 				// Response data
 				responseData := make([]byte, 2048+i%1024)
 				_ = responseData // Simulate sending response
 			}
-			
+
 			// Cleanup old connections
 			if len(connections) > 1000 {
 				connections = connections[500:]
@@ -168,9 +168,9 @@ func generateWebServerWorkload(ctx context.Context) {
 func generateBatchProcessingWorkload(ctx context.Context) {
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
-	
+
 	var batches [][]byte
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -179,14 +179,14 @@ func generateBatchProcessingWorkload(ctx context.Context) {
 			// Process a batch of data
 			batchSize := 1024 * 1024 // 1MB batch
 			batch := make([]byte, batchSize)
-			
+
 			// Simulate processing
 			for i := 0; i < len(batch); i += 1024 {
 				batch[i] = byte(i % 256)
 			}
-			
+
 			batches = append(batches, batch)
-			
+
 			// Keep only last 5 batches
 			if len(batches) > 5 {
 				batches = batches[1:]
@@ -199,10 +199,10 @@ func generateBatchProcessingWorkload(ctx context.Context) {
 func generateCacheWorkload(ctx context.Context) {
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
-	
+
 	cache := make(map[string][]byte)
 	keyCounter := 0
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -221,7 +221,7 @@ func generateCacheWorkload(ctx context.Context) {
 				value := make([]byte, 512+keyCounter%512)
 				cache[key] = value
 				keyCounter++
-				
+
 				// Periodic cache cleanup
 				if len(cache) > 1000 {
 					// Remove half of the cache
